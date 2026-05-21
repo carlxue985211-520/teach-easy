@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>一年级数学互动教具 - 1 到 5</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">人教版一年级上 · 5 以内数的认识</p>
+          <h1>1～5 互动演示台</h1>
+        </div>
+        <div class="score" aria-live="polite">
+          <span>星星</span>
+          <strong id="starCount">0</strong>
+        </div>
+      </header>
+
+      <nav class="activity-tabs" aria-label="活动切换">
+        <button class="tab active" data-activity="count">数一数</button>
+        <button class="tab" data-activity="compare">比一比</button>
+        <button class="tab" data-activity="ordinal">第几</button>
+        <button class="tab" data-activity="split">分与合</button>
+      </nav>
+
+      <section class="stage">
+        <aside class="teacher-panel">
+          <p class="unit-tag" id="unitTag">活动一</p>
+          <h2 id="activityTitle">数一数，认识 1～5</h2>
+          <p id="activityPrompt">点一点花园里的花，再选择它表示的数。</p>
+          <div class="feedback good" id="feedback">先观察，再动手。</div>
+        </aside>
+
+        <section class="activity-view active" id="count" aria-label="数一数活动">
+          <div class="scene garden" id="countScene" aria-live="polite"></div>
+          <div class="number-row" id="numberChoices"></div>
+        </section>
+
+        <section class="activity-view" id="compare" aria-label="比大小活动">
+          <div class="compare-board">
+            <div class="pile" id="leftPile">
+              <span class="pile-label">左边</span>
+              <div class="objects" id="leftObjects"></div>
+              <div class="stepper">
+                <button data-side="left" data-delta="-1">−</button>
+                <strong id="leftCount">3</strong>
+                <button data-side="left" data-delta="1">+</button>
+              </div>
+            </div>
+            <div class="sign-column">
+              <div class="sign-display" id="chosenSign">?</div>
+              <div class="sign-buttons">
+                <button data-sign=">">&gt;</button>
+                <button data-sign="=">=</button>
+                <button data-sign="<">&lt;</button>
+              </div>
+            </div>
+            <div class="pile" id="rightPile">
+              <span class="pile-label">右边</span>
+              <div class="objects" id="rightObjects"></div>
+              <div class="stepper">
+                <button data-side="right" data-delta="-1">−</button>
+                <strong id="rightCount">2</strong>
+                <button data-side="right" data-delta="1">+</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="activity-view" id="ordinal" aria-label="第几活动">
+          <div class="ordinal-controls">
+            <button class="direction active" data-direction="left">从左边数</button>
+            <button class="direction" data-direction="right">从右边数</button>
+          </div>
+          <div class="bird-line" id="birdLine"></div>
+          <div class="ordinal-question">
+            <span id="ordinalText">请找出第 4 只小鸟</span>
+            <button id="newOrdinal">换一题</button>
+          </div>
+        </section>
+
+        <section class="activity-view" id="split" aria-label="分与合活动">
+          <div class="split-layout">
+            <div class="basket-zone">
+              <div class="basket">
+                <span>第一堆</span>
+                <div class="basket-items" id="basketA"></div>
+              </div>
+              <div class="basket">
+                <span>第二堆</span>
+                <div class="basket-items" id="basketB"></div>
+              </div>
+            </div>
+            <div class="split-control">
+              <label for="splitSlider">把 5 分成两堆</label>
+              <input id="splitSlider" type="range" min="1" max="4" value="2" />
+              <div class="formula" id="splitFormula">5 可以分成 2 和 3</div>
+              <button id="splitShuffle">换一种分法</button>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

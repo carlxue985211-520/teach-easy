@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>一年级数学上册互动教具汇总</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="hero">
+        <div>
+          <p class="kicker">人教版一年级上册 · 教师演示版</p>
+          <h1>小学数学互动教具汇总</h1>
+        </div>
+        <div class="hero-note">
+          <span id="toolCode">T01-A</span>
+          <strong id="unitName">第一单元</strong>
+        </div>
+      </header>
+
+      <section class="control-strip" aria-label="教具选择">
+        <label>
+          <span>选择章节</span>
+          <select id="chapterSelect"></select>
+        </label>
+        <fieldset class="version-switch">
+          <legend>展示版本</legend>
+          <button type="button" class="version active" data-version="A">A 课件版</button>
+          <button type="button" class="version" data-version="B">B 儿童版</button>
+        </fieldset>
+        <button type="button" id="resetTool" class="reset-button">重置教具</button>
+      </section>
+
+      <section class="lesson-frame">
+        <aside class="lesson-info">
+          <p id="pageRange">PDF 3-12 · 教材 14-23</p>
+          <h2 id="lessonTitle">1-5 的认识</h2>
+          <div class="objective" id="lessonObjective">认识 1-5，建立数量和数字的对应。</div>
+          <div class="teacher-tip" id="teacherTip">先让学生观察物体数量，再点数验证。</div>
+        </aside>
+
+        <section class="tool-stage" id="toolStage" aria-live="polite"></section>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

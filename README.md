@@ -6,6 +6,7 @@
 
 - `index.html`、`styles.css`、`app.js`：Vercel 默认部署入口，直接展示整本教材汇总版互动教具。
 - `supabase-reviews.sql`：评价模块 Supabase 建表和权限脚本，需要在 Supabase SQL Editor 执行一次。
+- `PROJECT_HANDOFF.md`：完整项目交接说明，新开对话时优先使用。
 - `汇总测试/`：整本教材汇总版互动教具入口，包含章节下拉选择和 A/B 风格切换。
 - `测试/`：早期单节互动案例和教材章节梳理文档。
 

@@ -280,6 +280,12 @@ const tools = [
 
 const $ = (selector) => document.querySelector(selector);
 
+const SITE_ID = "teach-easy";
+const SUPABASE_URL = "https://aobochkirbskwucttsmm.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvYm9jaGtpcmJza3d1Y3R0c21tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgzNDIyMzMsImV4cCI6MjA5MzkxODIzM30.eLNV2yXJ29tRoxu2GUcKbAWvnDccaGD6I1e1aAdawis";
+const REVIEW_TABLE = "teaching_aid_reviews";
+const REVIEW_STORAGE_KEY = "teach-easy-reviewer";
+
 const els = {
   select: $("#chapterSelect"),
   versionButtons: [...document.querySelectorAll(".version")],
@@ -296,6 +302,15 @@ const els = {
 let selectedToolId = tools[0].id;
 let version = "A";
 let state = {};
+let reviewPanelOpen = true;
+let reviewer = localStorage.getItem(REVIEW_STORAGE_KEY) || "";
+let reviewState = {
+  key: "",
+  loading: false,
+  loaded: false,
+  error: "",
+  items: []
+};
 
 function currentTool() {
   return tools.find((tool) => tool.id === selectedToolId) || tools[0];
@@ -336,6 +351,7 @@ function init() {
     selectedToolId = els.select.value;
     resetState();
     render();
+    ensureReviews();
   });
 
   els.versionButtons.forEach((button) => {
@@ -343,6 +359,7 @@ function init() {
       version = button.dataset.version;
       els.versionButtons.forEach((item) => item.classList.toggle("active", item === button));
       render();
+      ensureReviews();
     });
   });
 
@@ -353,6 +370,7 @@ function init() {
 
   resetState();
   render();
+  ensureReviews();
 }
 
 function render() {
@@ -389,10 +407,12 @@ function render() {
       </div>
       ${body}
       <div class="feedback ${state.feedbackType || ""}" id="feedback">${state.feedback}</div>
+      ${renderReviewPanel(tool)}
     </article>
   `;
 
   bindByType(tool);
+  bindReviewPanel(tool);
 }
 
 function renderByType(tool) {
@@ -423,6 +443,275 @@ function setFeedback(text, type = "good") {
   state.feedback = text;
   state.feedbackType = type;
   render();
+}
+
+function reviewKey(tool = currentTool()) {
+  return `${tool.id}-${version}`;
+}
+
+function supabaseHeaders(extra = {}) {
+  return {
+    apikey: SUPABASE_ANON_KEY,
+    Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+    "Content-Type": "application/json",
+    ...extra
+  };
+}
+
+function reviewUrl(query = "") {
+  return `${SUPABASE_URL}/rest/v1/${REVIEW_TABLE}${query}`;
+}
+
+function encodeFilter(value) {
+  return encodeURIComponent(value);
+}
+
+async function ensureReviews() {
+  const tool = currentTool();
+  const key = reviewKey(tool);
+  if (reviewState.key === key && (reviewState.loading || reviewState.loaded)) {
+    return;
+  }
+  await loadReviews(tool);
+}
+
+async function loadReviews(tool = currentTool()) {
+  const key = reviewKey(tool);
+  reviewState = {
+    key,
+    loading: true,
+    loaded: false,
+    error: "",
+    items: reviewState.key === key ? reviewState.items : []
+  };
+  render();
+
+  const query = [
+    "?select=id,tool_id,tool_title,version,reviewer_id,content,created_at",
+    `&site_id=eq.${encodeFilter(SITE_ID)}`,
+    `&tool_id=eq.${encodeFilter(tool.id)}`,
+    `&version=eq.${encodeFilter(version)}`,
+    "&order=created_at.desc"
+  ].join("");
+
+  try {
+    const response = await fetch(reviewUrl(query), {
+      headers: supabaseHeaders()
+    });
+    if (!response.ok) throw new Error(await response.text());
+    const items = await response.json();
+    reviewState = { key, loading: false, loaded: true, error: "", items };
+  } catch (error) {
+    reviewState = {
+      key,
+      loading: false,
+      loaded: true,
+      error: "评价读取失败。请确认已在 Supabase 执行 supabase-reviews.sql。",
+      items: []
+    };
+    console.warn(error);
+  }
+  render();
+}
+
+async function submitReview(tool, content) {
+  const trimmed = content.trim();
+  if (!reviewer) {
+    setReviewError("请先在评价区登录。");
+    return;
+  }
+  if (!trimmed || trimmed.length > 500) {
+    setReviewError("评价内容需要 1-500 字。");
+    return;
+  }
+
+  try {
+    const response = await fetch(reviewUrl(""), {
+      method: "POST",
+      headers: supabaseHeaders({ Prefer: "return=minimal" }),
+      body: JSON.stringify({
+        site_id: SITE_ID,
+        tool_id: tool.id,
+        tool_title: tool.title,
+        version,
+        reviewer_id: reviewer,
+        content: trimmed
+      })
+    });
+    if (!response.ok) throw new Error(await response.text());
+    state.feedback = "评价已提交。";
+    state.feedbackType = "good";
+    await loadReviews(tool);
+  } catch (error) {
+    setReviewError("评价提交失败。请检查 Supabase 表和 RLS 策略。");
+    console.warn(error);
+  }
+}
+
+async function deleteReview(tool, reviewId) {
+  if (!reviewer) {
+    setReviewError("请先登录后再删除自己的评价。");
+    return;
+  }
+  const confirmed = window.confirm("确定删除这条评价吗？");
+  if (!confirmed) return;
+
+  const query = [
+    `?id=eq.${encodeFilter(reviewId)}`,
+    `&reviewer_id=eq.${encodeFilter(reviewer)}`
+  ].join("");
+
+  try {
+    const response = await fetch(reviewUrl(query), {
+      method: "DELETE",
+      headers: supabaseHeaders({ "x-reviewer-id": reviewer })
+    });
+    if (!response.ok) throw new Error(await response.text());
+    state.feedback = "评价已删除。";
+    state.feedbackType = "good";
+    await loadReviews(tool);
+  } catch (error) {
+    setReviewError("删除失败。只能删除当前登录账号自己的评价。");
+    console.warn(error);
+  }
+}
+
+function setReviewError(message) {
+  reviewState = { ...reviewState, error: message, loading: false, loaded: true };
+  render();
+}
+
+function loginReviewer(account, password) {
+  if ((account === "1" && password === "1") || (account === "2" && password === "2")) {
+    reviewer = account;
+    localStorage.setItem(REVIEW_STORAGE_KEY, reviewer);
+    reviewState = { ...reviewState, error: "" };
+    render();
+    return;
+  }
+  setReviewError("账号或密码不对。当前只支持 1/1 和 2/2。");
+}
+
+function logoutReviewer() {
+  reviewer = "";
+  localStorage.removeItem(REVIEW_STORAGE_KEY);
+  render();
+}
+
+function renderReviewPanel(tool) {
+  const count = reviewState.items.length;
+  const loadingText = reviewState.loading ? `<div class="review-empty">正在读取评价...</div>` : "";
+  const errorText = reviewState.error ? `<div class="review-error">${escapeHtml(reviewState.error)}</div>` : "";
+  const body = reviewPanelOpen ? `
+    <div class="review-body">
+      ${renderReviewLogin()}
+      <form class="review-form" id="reviewForm">
+        <textarea id="reviewContent" maxlength="500" placeholder="写下对 ${escapeHtml(tool.id)}-${version} 的评价，最多 500 字。"></textarea>
+        <button type="submit">提交评价</button>
+      </form>
+      ${errorText}
+      ${loadingText}
+      <div class="review-list">
+        ${reviewState.items.length ? reviewState.items.map(renderReviewItem).join("") : (!reviewState.loading ? `<div class="review-empty">当前版本还没有评价。</div>` : "")}
+      </div>
+    </div>
+  ` : "";
+
+  return `
+    <section class="review-panel">
+      <button type="button" class="review-toggle" id="reviewToggle" aria-expanded="${reviewPanelOpen}">
+        <span>评价面板（${count} 条）</span>
+        <strong>${tool.id}-${version}</strong>
+      </button>
+      ${body}
+    </section>
+  `;
+}
+
+function renderReviewLogin() {
+  if (reviewer) {
+    return `
+      <div class="review-login logged-in">
+        <span>当前评审人：${escapeHtml(reviewer)}</span>
+        <button type="button" id="reviewLogout">退出</button>
+      </div>
+    `;
+  }
+  return `
+    <form class="review-login" id="reviewLoginForm">
+      <input id="reviewAccount" inputmode="numeric" autocomplete="username" placeholder="账号" />
+      <input id="reviewPassword" type="password" autocomplete="current-password" placeholder="密码" />
+      <button type="submit">登录后评价</button>
+    </form>
+  `;
+}
+
+function renderReviewItem(item) {
+  const canDelete = reviewer && item.reviewer_id === reviewer;
+  const time = new Date(item.created_at).toLocaleString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+  return `
+    <article class="review-item">
+      <header>
+        <strong>评审人 ${escapeHtml(item.reviewer_id)}</strong>
+        <span>${escapeHtml(time)}</span>
+      </header>
+      <p>${escapeHtml(item.content)}</p>
+      ${canDelete ? `<button type="button" data-delete-review="${escapeHtml(item.id)}">删除</button>` : ""}
+    </article>
+  `;
+}
+
+function bindReviewPanel(tool) {
+  const toggle = document.querySelector("#reviewToggle");
+  if (toggle) {
+    toggle.addEventListener("click", () => {
+      reviewPanelOpen = !reviewPanelOpen;
+      render();
+    });
+  }
+
+  const loginForm = document.querySelector("#reviewLoginForm");
+  if (loginForm) {
+    loginForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      loginReviewer(
+        document.querySelector("#reviewAccount").value.trim(),
+        document.querySelector("#reviewPassword").value
+      );
+    });
+  }
+
+  const logout = document.querySelector("#reviewLogout");
+  if (logout) {
+    logout.addEventListener("click", logoutReviewer);
+  }
+
+  const form = document.querySelector("#reviewForm");
+  if (form) {
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      submitReview(tool, document.querySelector("#reviewContent").value);
+    });
+  }
+
+  document.querySelectorAll("[data-delete-review]").forEach((button) => {
+    button.addEventListener("click", () => deleteReview(tool, button.dataset.deleteReview));
+  });
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 function objectHtml(count, options = {}) {

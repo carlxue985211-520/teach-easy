@@ -472,6 +472,188 @@ body[data-version="b"] .hero-note {
   color: #963d2d;
 }
 
+.review-panel {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.version-a .review-panel {
+  border-color: #c8d1df;
+}
+
+.version-b .review-panel {
+  border: 2px solid #f0ca76;
+  background: #fff8df;
+  box-shadow: 0 8px 0 rgba(239, 177, 72, 0.1);
+}
+
+.review-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 58px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 0;
+  background: #f8fbff;
+  color: var(--ink);
+  text-align: left;
+}
+
+.version-a .review-toggle {
+  background: #eef2f7;
+}
+
+.version-b .review-toggle {
+  background: #fff0bc;
+  color: #73500e;
+}
+
+.review-toggle span {
+  font-size: 20px;
+  font-weight: 950;
+}
+
+.review-toggle strong {
+  font-size: 15px;
+}
+
+.review-body {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.review-login {
+  display: grid;
+  grid-template-columns: 150px 150px auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.review-login.logged-in {
+  grid-template-columns: 1fr auto;
+  min-height: 48px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: #eaf7ee;
+  color: #276348;
+  font-weight: 850;
+}
+
+.review-login input,
+.review-form textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+}
+
+.review-login input {
+  min-height: 46px;
+  padding: 0 12px;
+}
+
+.review-login button,
+.review-form button,
+.review-item button {
+  min-height: 46px;
+  padding: 0 16px;
+}
+
+.review-form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.review-form textarea {
+  min-height: 90px;
+  resize: vertical;
+  padding: 12px;
+  line-height: 1.5;
+}
+
+.review-form button {
+  background: var(--chalk);
+  color: #fff;
+  border-color: var(--chalk);
+}
+
+.version-b .review-form button {
+  background: #ef7a56;
+  border-color: #d65d39;
+}
+
+.review-error,
+.review-empty {
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-weight: 800;
+}
+
+.review-error {
+  background: #fff0ec;
+  color: #963d2d;
+  border: 1px solid #f1b5a8;
+}
+
+.review-empty {
+  background: #f8fafc;
+  color: var(--muted);
+  border: 1px dashed #c8d1df;
+}
+
+.review-list {
+  display: grid;
+  gap: 10px;
+}
+
+.review-item {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.version-b .review-item {
+  border-color: #f0ca76;
+  background: #fffdf3;
+}
+
+.review-item header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.review-item header strong {
+  color: var(--ink);
+}
+
+.review-item p {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+.review-item button {
+  justify-self: start;
+  color: #963d2d;
+  border-color: #f1b5a8;
+  background: #fff0ec;
+}
+
 .big-number {
   display: inline-grid;
   place-items: center;
@@ -917,5 +1099,10 @@ input[type="range"] {
 
   .version-switch {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .review-login,
+  .review-form {
+    grid-template-columns: 1fr;
   }
 }

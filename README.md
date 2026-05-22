@@ -5,6 +5,7 @@
 ## 当前内容
 
 - `index.html`、`styles.css`、`app.js`：Vercel 默认部署入口，直接展示整本教材汇总版互动教具。
+- `supabase-reviews.sql`：评价模块 Supabase 建表和权限脚本，需要在 Supabase SQL Editor 执行一次。
 - `汇总测试/`：整本教材汇总版互动教具入口，包含章节下拉选择和 A/B 风格切换。
 - `测试/`：早期单节互动案例和教材章节梳理文档。
 
@@ -25,3 +26,5 @@ http://127.0.0.1:8781/
 ## 说明
 
 教材 PDF 未提交到仓库；仓库只包含根据教材结构生成的互动教具代码和整理文档。
+
+评价模块使用 Supabase 保存数据。首次使用前，复制 `supabase-reviews.sql` 到 Supabase SQL Editor 执行；评审账号为 `1/1` 和 `2/2`。

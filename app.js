@@ -17,11 +17,8 @@ const tools = [
     pages: "PDF 13-18 · 教材 24-29",
     objective: "用合起来、去掉来理解加法和减法。",
     tip: "演示前先让学生说图意，再出现算式。",
-    type: "addSub",
-    total: 5,
-    left: 3,
-    right: 1,
-    mode: "add"
+    type: "builder",
+    builder: { modes: ["add", "sub"], boxCount: 2, pool: 5, init: { add: [3, 1], subMinuend: 5 } }
   },
   {
     id: "T03",
@@ -30,7 +27,8 @@ const tools = [
     pages: "PDF 19 · 教材 30",
     objective: "理解 0 表示一个也没有，掌握加 0、减 0、减完为 0。",
     tip: "用空盘子和拿走全部帮助学生说出 0 的意思。",
-    type: "zero"
+    type: "builder",
+    builder: { modes: ["add", "sub"], boxCount: 2, pool: 5, init: { add: [0, 5], subMinuend: 4 }, examples: ["0+5=5", "5+0=5", "5-0=5", "5-5=0"] }
   },
   {
     id: "T04",
@@ -70,11 +68,8 @@ const tools = [
     pages: "PDF 33-38 · 教材 44-49",
     objective: "根据 6、7 的分合看图列加减算式。",
     tip: "先说左边、右边各有几个，再判断用加法还是减法。",
-    type: "addSub",
-    total: 7,
-    left: 5,
-    right: 2,
-    mode: "add"
+    type: "builder",
+    builder: { modes: ["add", "sub"], boxCount: 2, pool: 7, init: { add: [5, 2], subMinuend: 7 } }
   },
   {
     id: "T08",
@@ -105,10 +100,8 @@ const tools = [
     pages: "PDF 48 · 教材 59",
     objective: "理解连续增加或连续减少，按顺序计算。",
     tip: "每点一步就让学生说当前数量，最后再写完整算式。",
-    type: "chain",
-    start: 5,
-    steps: [2, 1],
-    mode: "add"
+    type: "builder",
+    builder: { modes: ["add"], boxCount: 3, pool: 10, init: { add: [5, 2, 1] }, boxLabels: ["第一个数", "第二个数", "第三个数"] }
   },
   {
     id: "T11",
@@ -117,10 +110,8 @@ const tools = [
     pages: "PDF 49-51 · 教材 60-62",
     objective: "理解先加后减或先减后加的动态过程。",
     tip: "把每一次变化分开演示，降低一步到位的负担。",
-    type: "chain",
-    start: 4,
-    steps: [-2, 3],
-    mode: "mix"
+    type: "builder",
+    builder: { modes: ["mix"], boxCount: 2, pool: 10, init: { mix: [4, 3] }, boxLabels: ["第一个数", "第二个数"] }
   },
   {
     id: "T12",
@@ -359,6 +350,7 @@ function resetState(tool = currentTool()) {
     base: tool.base || 9,
     add: tool.add || 4,
     swap: false,
+    builder: null,
     feedback: "选择一个动作，开始课堂演示。"
   };
 }
@@ -440,13 +432,11 @@ function render() {
 function renderByType(tool) {
   const renderers = {
     quantity: renderQuantity,
-    addSub: renderAddSub,
-    zero: renderZero,
+    builder: renderBuilder,
     review: renderReview,
     split: renderSplit,
     hidePart: renderHidePart,
     tenFrame: renderTenFrame,
-    chain: renderChain,
     solids: renderSolids,
     build: renderBuild,
     bundle10: renderBundle10,
@@ -783,88 +773,265 @@ function bindQuantity(tool) {
   });
 }
 
-function renderAddSub(tool) {
-  const isAdd = state.mode === "add";
-  const total = isAdd ? state.left + state.right : tool.total;
-  const result = isAdd ? total : Math.max(0, total - state.right);
-  const sign = isAdd ? "+" : "-";
+// ===== 通用方块拖放 / 叉掉组件（加减法统一交互）=====
+// 加法：把方块拖进多个方框，算式自动相加。
+// 减法：在一个方框里放好方块，点方块打 × 表示去掉（始终不会出现负数）。
+// 混合：多个方框相加 + 点叉减去。
+function builderConfig(tool) {
+  return tool.builder || {};
+}
+
+function initBuilderTokens(tool, mode) {
+  const cfg = builderConfig(tool);
+  const poolSize = cfg.pool || 10;
+  const tokens = Array.from({ length: poolSize }, () => ({ loc: "pool", crossed: false }));
+  const place = (count, box) => {
+    let placed = 0;
+    for (const token of tokens) {
+      if (placed >= count) break;
+      if (token.loc === "pool") {
+        token.loc = box;
+        placed += 1;
+      }
+    }
+  };
+  const init = cfg.init || {};
+  if (mode === "sub") {
+    place(init.subMinuend ?? 4, "box0");
+  } else if (mode === "mix") {
+    const arr = init.mix || init.add || [4, 3];
+    arr.forEach((count, index) => place(count, `box${index}`));
+  } else {
+    const arr = init.add || [3, 2];
+    arr.forEach((count, index) => place(count, `box${index}`));
+  }
+  return tokens;
+}
+
+function ensureBuilder(tool) {
+  const cfg = builderConfig(tool);
+  if (!state.builder) {
+    const mode = (cfg.modes && cfg.modes[0]) || "add";
+    state.builder = { mode, tokens: initBuilderTokens(tool, mode) };
+  }
+  return state.builder;
+}
+
+function builderBoxCount(tool) {
+  if (state.builder && state.builder.mode === "sub") return 1;
+  return builderConfig(tool).boxCount || 2;
+}
+
+function builderCounts(tool) {
+  const boxes = builderBoxCount(tool);
+  const counts = Array.from({ length: boxes }, () => 0);
+  let crossed = 0;
+  for (const token of state.builder.tokens) {
+    if (token.loc === "pool") continue;
+    const index = Number(token.loc.slice(3));
+    if (index < boxes) {
+      counts[index] += 1;
+      if (token.crossed) crossed += 1;
+    }
+  }
+  return { counts, crossed };
+}
+
+function builderFormula(tool) {
+  const mode = state.builder.mode;
+  const { counts, crossed } = builderCounts(tool);
+  const sum = counts.reduce((acc, value) => acc + value, 0);
+  if (mode === "sub") {
+    const c0 = counts[0] || 0;
+    return { left: `${c0} − ${crossed}`, result: c0 - crossed };
+  }
+  if (mode === "mix") {
+    return { left: `${counts.join(" + ")} − ${crossed}`, result: sum - crossed };
+  }
+  return { left: counts.join(" + "), result: sum };
+}
+
+function builderTokenHtml(index, token) {
+  const cls = ["builder-token", version === "A" ? "square" : "", token.crossed ? "crossed" : ""]
+    .filter(Boolean)
+    .join(" ");
+  return `<span class="${cls}" data-token="${index}"></span>`;
+}
+
+function renderBuilder(tool) {
+  ensureBuilder(tool);
+  const cfg = builderConfig(tool);
+  const mode = state.builder.mode;
+  const boxes = builderBoxCount(tool);
+  const { counts } = builderCounts(tool);
+  const formula = builderFormula(tool);
+  const labels = mode === "sub" ? ["一共"] : (cfg.boxLabels || ["第一部分", "第二部分", "第三部分"]);
+
+  let boxesHtml = "";
+  for (let i = 0; i < boxes; i += 1) {
+    const tokens = state.builder.tokens
+      .map((token, index) => ({ token, index }))
+      .filter((item) => item.token.loc === `box${i}`)
+      .map((item) => builderTokenHtml(item.index, item.token))
+      .join("");
+    boxesHtml += `
+      <div class="builder-box" data-zone="box${i}">
+        <h4>${escapeHtml(labels[i] || "方框 " + (i + 1))}：${counts[i] || 0}</h4>
+        <div class="builder-slot">${tokens}</div>
+      </div>`;
+  }
+
+  const poolTokens = state.builder.tokens
+    .map((token, index) => ({ token, index }))
+    .filter((item) => item.token.loc === "pool")
+    .map((item) => builderTokenHtml(item.index, item.token))
+    .join("");
+
+  const modeToggle = cfg.modes && cfg.modes.length > 1
+    ? `<div class="action-row">
+        ${cfg.modes.includes("add") ? `<button class="${mode === "add" ? "primary" : ""}" data-bmode="add">演示加法</button>` : ""}
+        ${cfg.modes.includes("sub") ? `<button class="${mode === "sub" ? "primary" : ""}" data-bmode="sub">演示减法</button>` : ""}
+      </div>`
+    : "";
+
+  const examples = cfg.examples
+    ? `<div class="symbol-row">${cfg.examples.map((expr) => `<button data-bexample="${escapeHtml(expr)}">${escapeHtml(expr.replaceAll("+", " + ").replaceAll("-", " − ").replaceAll("=", " = "))}</button>`).join("")}</div>`
+    : "";
+
+  const hint = (mode === "sub" || mode === "mix")
+    ? "拖动方块进出方框改变数量；点方框里的方块打 × 表示去掉。"
+    : "把下面仓库里的方块拖进方框，算式会自动变化。";
+
   return `
-    <div class="board">
-      <div class="split-board">
-        <div class="bin">
-          <h4>${isAdd ? "第一部分" : "原来"}</h4>
-          <div class="objects-grid">${objectHtml(isAdd ? state.left : total)}</div>
-        </div>
-        <div class="bin">
-          <h4>${isAdd ? "第二部分" : "去掉"}</h4>
-          <div class="objects-grid">${objectHtml(state.right, { label: isAdd ? "" : "×" })}</div>
-        </div>
+    <div class="board builder-board">
+      <div class="builder-boxes" style="grid-template-columns: repeat(${boxes}, 1fr)">${boxesHtml}</div>
+      <div class="builder-pool" data-zone="pool">
+        <span class="builder-pool-label">方块仓库（拖出 / 拖回）</span>
+        <div class="builder-slot">${poolTokens}</div>
       </div>
     </div>
     <div class="formula-line">
-      <span class="formula-box">${isAdd ? state.left : total}</span>
-      <span>${sign}</span>
-      <span class="formula-box">${state.right}</span>
-      <span>=</span>
-      <span class="formula-box">${result}</span>
+      <span>${formula.left}</span><span>=</span><span class="formula-box">${formula.result}</span>
     </div>
-    <div class="action-row">
-      <button class="primary" data-mode="add">演示加法</button>
-      <button data-mode="sub">演示减法</button>
-      <button data-adjust="left-plus">左边 +1</button>
-      <button data-adjust="right-plus">右边 +1</button>
-      <button data-adjust="right-minus">右边 -1</button>
-    </div>
+    ${modeToggle}
+    ${examples}
+    <p class="builder-hint">${hint}</p>
   `;
 }
 
-function bindAddSub(tool) {
-  document.querySelectorAll("[data-mode]").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.mode = button.dataset.mode;
-      setFeedback(state.mode === "add" ? "把两部分合起来，用加法。" : "从原来的数量里去掉一部分，用减法。", "good");
-    });
+function applyBuilderExample(tool, expr) {
+  const match = expr.match(/^(\d+)\s*([+\-−])\s*(\d+)/);
+  if (!match) return;
+  const a = Number(match[1]);
+  const op = match[2];
+  const b = Number(match[3]);
+  state.builder.tokens.forEach((token) => {
+    token.loc = "pool";
+    token.crossed = false;
   });
-  document.querySelectorAll("[data-adjust]").forEach((button) => {
-    button.addEventListener("click", () => {
-      if (button.dataset.adjust === "left-plus") state.left = clamp(state.left + 1, 1, tool.total || 9);
-      if (button.dataset.adjust === "right-plus") state.right = clamp(state.right + 1, 1, tool.total || 9);
-      if (button.dataset.adjust === "right-minus") state.right = clamp(state.right - 1, 1, tool.total || 9);
-      setFeedback("数量变了，请学生重新说图意和算式。", "good");
-    });
-  });
+  const place = (count, box, cross = false) => {
+    let placed = 0;
+    for (const token of state.builder.tokens) {
+      if (placed >= count) break;
+      if (token.loc === "pool") {
+        token.loc = box;
+        token.crossed = cross;
+        placed += 1;
+      }
+    }
+  };
+  if (op === "+") {
+    state.builder.mode = "add";
+    place(a, "box0");
+    place(b, "box1");
+  } else {
+    state.builder.mode = "sub";
+    place(a, "box0");
+    let crossed = 0;
+    for (const token of state.builder.tokens) {
+      if (crossed >= b) break;
+      if (token.loc === "box0") {
+        token.crossed = true;
+        crossed += 1;
+      }
+    }
+  }
+  setFeedback(`按算式 ${expr} 摆好了方块，请学生对照画面说一说。`, "good");
 }
 
-function renderZero() {
-  const emptyText = version === "A" ? "空盘子" : "吃光啦";
-  return `
-    <div class="board">
-      <div class="split-board">
-        <div class="bin">
-          <h4>有 4 个</h4>
-          <div class="objects-grid">${objectHtml(4)}</div>
-        </div>
-        <div class="bin">
-          <h4>${emptyText}</h4>
-          <div class="objects-grid">${objectHtml(0, { empty: true })}</div>
-        </div>
-      </div>
-    </div>
-    <div class="formula-line">
-      <span class="formula-box">4</span><span>-</span><span class="formula-box">4</span><span>=</span><span class="formula-box">0</span>
-    </div>
-    <div class="symbol-row">
-      <button data-zero="0+5=5">0 + 5 = 5</button>
-      <button data-zero="5+0=5">5 + 0 = 5</button>
-      <button data-zero="5-0=5">5 - 0 = 5</button>
-      <button data-zero="5-5=0">5 - 5 = 0</button>
-    </div>
-  `;
+function bindBuilder(tool) {
+  document.querySelectorAll("[data-bmode]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.builder.mode = button.dataset.bmode;
+      state.builder.tokens = initBuilderTokens(tool, state.builder.mode);
+      setFeedback(
+        state.builder.mode === "add"
+          ? "把方块拖进两个方框，再数一数合起来是多少。"
+          : "先在方框里放好方块，再点方块打 × 表示去掉，看看还剩几个。",
+        "good"
+      );
+    });
+  });
+
+  document.querySelectorAll("[data-bexample]").forEach((button) => {
+    button.addEventListener("click", () => applyBuilderExample(tool, button.dataset.bexample));
+  });
+
+  bindBuilderDrag();
 }
 
-function bindZero() {
-  document.querySelectorAll("[data-zero]").forEach((button) => {
-    button.addEventListener("click", () => setFeedback(`${button.dataset.zero}。0 可以表示一个也没有。`, "good"));
+// 指针事件实现拖放：同时支持鼠标和触摸屏（教室一体机）。
+function bindBuilderDrag() {
+  let drag = null;
+  els.stage.querySelectorAll("[data-token]").forEach((el) => {
+    el.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      drag = { idx: Number(el.dataset.token), sx: event.clientX, sy: event.clientY, moved: false, ghost: null, el };
+      if (el.setPointerCapture) el.setPointerCapture(event.pointerId);
+    });
+
+    el.addEventListener("pointermove", (event) => {
+      if (!drag || drag.el !== el) return;
+      const dx = event.clientX - drag.sx;
+      const dy = event.clientY - drag.sy;
+      if (!drag.moved && Math.hypot(dx, dy) > 6) {
+        drag.moved = true;
+        const ghost = document.createElement("span");
+        ghost.className = "builder-token dragging-ghost" + (version === "A" ? " square" : "");
+        ghost.style.position = "fixed";
+        ghost.style.pointerEvents = "none";
+        ghost.style.zIndex = "9999";
+        ghost.style.margin = "0";
+        ghost.style.transform = "translate(-50%, -50%)";
+        document.body.appendChild(ghost);
+        drag.ghost = ghost;
+        el.style.opacity = "0.3";
+      }
+      if (drag.ghost) {
+        drag.ghost.style.left = event.clientX + "px";
+        drag.ghost.style.top = event.clientY + "px";
+      }
+    });
+
+    el.addEventListener("pointerup", (event) => {
+      if (!drag || drag.el !== el) return;
+      const token = state.builder.tokens[drag.idx];
+      if (drag.moved) {
+        if (drag.ghost) drag.ghost.remove();
+        const target = document.elementFromPoint(event.clientX, event.clientY);
+        const zone = target && target.closest("[data-zone]");
+        if (zone) {
+          token.loc = zone.dataset.zone;
+          if (token.loc === "pool") token.crossed = false;
+        }
+      } else if (token.loc !== "pool") {
+        if (state.builder.mode === "sub" || state.builder.mode === "mix") token.crossed = !token.crossed;
+      } else {
+        token.loc = "box0";
+      }
+      drag = null;
+      render();
+    });
   });
 }
 
@@ -987,40 +1154,6 @@ function bindTenFrame() {
   document.querySelector("[data-ten-frame]").addEventListener("input", (event) => {
     state.filled = Number(event.target.value);
     setFeedback(`还差 ${10 - state.filled} 个就凑成 10。`, "good");
-  });
-}
-
-function renderChain(tool) {
-  // 只显示已走过的步骤，算式得数与当前物体数量保持一致，支持逐步演示。
-  const takenSteps = tool.steps.slice(0, state.chainStep);
-  let value = takenSteps.reduce((sum, step) => sum + step, tool.start);
-  const formula = [tool.start, ...takenSteps.map((step) => `${step >= 0 ? "+" : "-"}${Math.abs(step)}`)].join(" ");
-  return `
-    <div class="board">
-      <div class="objects-grid">${objectHtml(value)}</div>
-    </div>
-    <div class="formula-line">
-      <span>${formula}</span><span>=</span><span class="formula-box">${value}</span>
-    </div>
-    <div class="action-row">
-      <button class="primary" data-chain="next">下一步变化</button>
-      <button data-chain="reset">回到开始</button>
-    </div>
-  `;
-}
-
-function bindChain(tool) {
-  document.querySelectorAll("[data-chain]").forEach((button) => {
-    button.addEventListener("click", () => {
-      if (button.dataset.chain === "reset") {
-        state.chainStep = 0;
-        setFeedback("回到开始数量，重新一步一步演示。", "good");
-        return;
-      }
-      state.chainStep = Math.min(tool.steps.length, state.chainStep + 1);
-      const step = tool.steps[state.chainStep - 1];
-      setFeedback(step >= 0 ? `这一步又来了 ${step} 个。` : `这一步走了 ${Math.abs(step)} 个。`, "good");
-    });
   });
 }
 
@@ -1310,13 +1443,11 @@ function bindProblem(tool) {
 function bindByType(tool) {
   const binders = {
     quantity: bindQuantity,
-    addSub: bindAddSub,
-    zero: bindZero,
+    builder: bindBuilder,
     review: bindReview,
     split: bindSplit,
     hidePart: bindHidePart,
     tenFrame: bindTenFrame,
-    chain: bindChain,
     solids: bindSolids,
     build: bindBuild,
     bundle10: bindBundle10,

@@ -286,6 +286,31 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const REVIEW_TABLE = "teaching_aid_reviews";
 const REVIEW_STORAGE_KEY = "teach-easy-reviewer";
 
+// 安全访问 localStorage：隐私模式或禁用存储时不抛错、不白屏。
+function safeStorageGet(key) {
+  try {
+    return localStorage.getItem(key) || "";
+  } catch (error) {
+    return "";
+  }
+}
+
+function safeStorageSet(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch (error) {
+    /* 忽略：存储不可用时仅退化为内存态 */
+  }
+}
+
+function safeStorageRemove(key) {
+  try {
+    localStorage.removeItem(key);
+  } catch (error) {
+    /* 忽略 */
+  }
+}
+
 const els = {
   select: $("#chapterSelect"),
   versionButtons: [...document.querySelectorAll(".version")],
@@ -303,7 +328,7 @@ let selectedToolId = tools[0].id;
 let version = "A";
 let state = {};
 let reviewPanelOpen = true;
-let reviewer = localStorage.getItem(REVIEW_STORAGE_KEY) || "";
+let reviewer = safeStorageGet(REVIEW_STORAGE_KEY);
 let reviewState = {
   key: "",
   loading: false,
@@ -324,6 +349,7 @@ function resetState(tool = currentTool()) {
     right: tool.right ?? 2,
     mode: tool.mode || "add",
     splitLeft: Math.max(1, Math.floor((tool.total || 8) / 2)),
+    onesValue: tool.ones || 3,
     visible: tool.visible || 6,
     filled: tool.filled || 7,
     chainStep: 0,
@@ -406,7 +432,7 @@ function render() {
         <span>${versionNote.text}</span>
       </div>
       ${body}
-      <div class="feedback ${state.feedbackType || ""}" id="feedback">${state.feedback}</div>
+      <div class="feedback ${escapeHtml(state.feedbackType || "")}" id="feedback">${escapeHtml(state.feedback)}</div>
       ${renderReviewPanel(tool)}
     </article>
   `;
@@ -584,7 +610,7 @@ function setReviewError(message) {
 function loginReviewer(account, password) {
   if ((account === "1" && password === "1") || (account === "2" && password === "2")) {
     reviewer = account;
-    localStorage.setItem(REVIEW_STORAGE_KEY, reviewer);
+    safeStorageSet(REVIEW_STORAGE_KEY, reviewer);
     reviewState = { ...reviewState, error: "" };
     render();
     return;
@@ -594,7 +620,7 @@ function loginReviewer(account, password) {
 
 function logoutReviewer() {
   reviewer = "";
-  localStorage.removeItem(REVIEW_STORAGE_KEY);
+  safeStorageRemove(REVIEW_STORAGE_KEY);
   render();
 }
 
@@ -969,15 +995,16 @@ function bindTenFrame() {
 }
 
 function renderChain(tool) {
-  let value = tool.start;
-  for (let i = 0; i < state.chainStep; i += 1) value += tool.steps[i];
-  const formula = [tool.start, ...tool.steps.map((step) => `${step >= 0 ? "+" : "-"}${Math.abs(step)}`)].join(" ");
+  // 只显示已走过的步骤，算式得数与当前物体数量保持一致，支持逐步演示。
+  const takenSteps = tool.steps.slice(0, state.chainStep);
+  let value = takenSteps.reduce((sum, step) => sum + step, tool.start);
+  const formula = [tool.start, ...takenSteps.map((step) => `${step >= 0 ? "+" : "-"}${Math.abs(step)}`)].join(" ");
   return `
     <div class="board">
       <div class="objects-grid">${objectHtml(value)}</div>
     </div>
     <div class="formula-line">
-      <span>${formula}</span><span>=</span><span class="formula-box">${tool.steps.reduce((sum, step) => sum + step, tool.start)}</span>
+      <span>${formula}</span><span>=</span><span class="formula-box">${value}</span>
     </div>
     <div class="action-row">
       <button class="primary" data-chain="next">下一步变化</button>
@@ -1126,7 +1153,7 @@ function bindNumberLine() {
 }
 
 function renderTenPlus() {
-  const result = 10 + state.splitLeft;
+  const result = 10 + state.onesValue;
   return `
     <div class="place-board">
       <div class="place-column">
@@ -1134,21 +1161,21 @@ function renderTenPlus() {
         <div class="objects-grid"><span class="bundle"></span></div>
       </div>
       <div class="place-column">
-        <h4>${state.splitLeft}</h4>
-        <div class="objects-grid">${objectHtml(state.splitLeft)}</div>
+        <h4>${state.onesValue}</h4>
+        <div class="objects-grid">${objectHtml(state.onesValue)}</div>
       </div>
     </div>
     <div class="formula-line">
-      <span class="formula-box">10</span><span>+</span><span class="formula-box">${state.splitLeft}</span><span>=</span><span class="formula-box">${result}</span>
+      <span class="formula-box">10</span><span>+</span><span class="formula-box">${state.onesValue}</span><span>=</span><span class="formula-box">${result}</span>
     </div>
-    <input type="range" min="1" max="9" value="${state.splitLeft}" data-ten-plus />
+    <input type="range" min="1" max="9" value="${state.onesValue}" data-ten-plus />
   `;
 }
 
 function bindTenPlus() {
   document.querySelector("[data-ten-plus]").addEventListener("input", (event) => {
-    state.splitLeft = Number(event.target.value);
-    setFeedback(`10 加 ${state.splitLeft} 等于 ${10 + state.splitLeft}。反过来，${10 + state.splitLeft} 减 10 等于 ${state.splitLeft}。`, "good");
+    state.onesValue = Number(event.target.value);
+    setFeedback(`10 加 ${state.onesValue} 等于 ${10 + state.onesValue}。反过来，${10 + state.onesValue} 减 10 等于 ${state.onesValue}。`, "good");
   });
 }
 

@@ -1180,6 +1180,50 @@ input[type="range"] {
   font-weight: 700;
 }
 
+/* ===== 复习卡片 ===== */
+.review-board {
+  min-height: auto;
+  overflow: visible;
+}
+
+.review-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 18px;
+}
+
+.review-cards .choice-chip {
+  touch-action: none;
+  cursor: grab;
+  transition: transform 140ms ease, background 140ms ease;
+}
+
+.choice-chip.quiz-active {
+  transform: scale(1.28);
+  background: var(--yellow);
+  color: #5a3d08;
+  border-color: #e0a92e;
+  box-shadow: 0 6px 0 rgba(176, 108, 22, 0.22);
+  z-index: 1;
+}
+
+.choice-chip.correct {
+  background: var(--green);
+  color: #fff;
+  border-color: var(--green);
+}
+
+.choice-chip.wrong {
+  background: var(--red);
+  color: #fff;
+  border-color: var(--red);
+}
+
+.review-prompt {
+  font-size: 20px;
+}
+
 @keyframes pop {
   from {
     opacity: 0;

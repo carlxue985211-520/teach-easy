@@ -351,6 +351,7 @@ function resetState(tool = currentTool()) {
     add: tool.add || 4,
     swap: false,
     builder: null,
+    review: null,
     feedback: "选择一个动作，开始课堂演示。"
   };
 }
@@ -1035,43 +1036,157 @@ function bindBuilderDrag() {
   });
 }
 
-function renderReview(tool) {
+// ===== 复习卡片：随机抽问 / 找得数挑战 / 一键整理 / 拖动排序 =====
+function reviewCardPool(tool) {
   const max = tool.max;
   const cards = [];
+  const seen = new Set();
+  const add = (expr, result) => {
+    if (!seen.has(expr)) {
+      seen.add(expr);
+      cards.push({ expr, result, status: "" });
+    }
+  };
   if (tool.plusOnly) {
     for (let a = 2; a <= 9; a += 1) {
-      for (let b = 2; b <= 9; b += 1) {
-        if (a + b > 10 && a + b <= 20) cards.push(`${a}+${b}=${a + b}`);
+      for (let b = a; b <= 9; b += 1) {
+        const sum = a + b;
+        if (sum > 10 && sum <= 20) add(`${a}+${b}`, sum);
       }
     }
   } else {
-    for (let i = 0; i <= max; i += 1) {
-      cards.push(`${i}`);
-      if (i > 0) cards.push(`${max}-${i}=${max - i}`);
-      if (i <= max) cards.push(`${i}+${max - i}=${max}`);
+    for (let c = 2; c <= max; c += 1) {
+      for (let a = 1; a <= Math.floor(c / 2); a += 1) add(`${a}+${c - a}`, c);
     }
+    for (let b = 1; b < max; b += 1) add(`${max}-${b}`, max - b);
   }
+  return cards.slice(0, 24);
+}
+
+function ensureReview(tool) {
+  if (!state.review) {
+    state.review = { mode: "browse", cards: reviewCardPool(tool), quizIndex: -1, revealed: false, target: null };
+  }
+  return state.review;
+}
+
+function renderReview(tool) {
+  const r = ensureReview(tool);
+  let prompt = "点一张卡片说说它的得数；也可以随机抽问或做找得数挑战。";
+  if (r.mode === "quiz" && r.quizIndex >= 0) {
+    const card = r.cards[r.quizIndex];
+    prompt = r.revealed
+      ? `${card.expr} = ${card.result}。`
+      : `请算一算：${card.expr} = ？（点放大的卡片揭晓答案）`;
+  } else if (r.mode === "challenge") {
+    prompt = `找出所有得数是 ${r.target} 的算式，点一点卡片：对的变绿，错的变红。`;
+  }
+  const cards = r.cards.map((card, index) => {
+    const cls = ["choice-chip", card.status, index === r.quizIndex ? "quiz-active" : ""].filter(Boolean).join(" ");
+    const text = (r.mode === "quiz" && index === r.quizIndex && r.revealed) ? `${card.expr}=${card.result}` : card.expr;
+    return `<button class="${cls}" data-card-index="${index}" style="animation-delay:${index * 18}ms">${escapeHtml(text)}</button>`;
+  }).join("");
   return `
-    <div class="board">
-      <div class="objects-grid">
-        ${cards.slice(0, 20).map((card, index) => `<button class="choice-chip" data-card="${card}" style="animation-delay:${index * 20}ms">${card}</button>`).join("")}
-      </div>
+    <div class="board review-board">
+      <div class="review-cards">${cards}</div>
     </div>
+    <div class="formula-line review-prompt"><span>${escapeHtml(prompt)}</span></div>
     <div class="action-row">
-      <button class="primary" data-review="sort">按得数整理</button>
-      <button data-review="ask">随机抽问</button>
+      <button class="${r.mode === "quiz" ? "primary" : ""}" data-review="quiz">随机抽问</button>
+      <button class="${r.mode === "challenge" ? "primary" : ""}" data-review="challenge">找得数挑战</button>
+      <button data-review="sort">一键整理（按得数）</button>
+      <button data-review="reset">重新摆放</button>
     </div>
+    <p class="builder-hint">卡片可以拖动排序整理。</p>
   `;
 }
 
-function bindReview() {
-  document.querySelectorAll("[data-card]").forEach((button) => {
-    button.addEventListener("click", () => setFeedback(`这张卡片是 ${button.dataset.card}。请学生说一说它表示的意思。`, "good"));
-  });
+function reviewCardTap(r, index) {
+  const card = r.cards[index];
+  if (r.mode === "quiz") {
+    if (index === r.quizIndex) {
+      r.revealed = true;
+      state.feedback = `${card.expr} = ${card.result}。答对了吗？`;
+      state.feedbackType = "good";
+    } else {
+      r.quizIndex = index;
+      r.revealed = false;
+      state.feedback = `抽到了 ${card.expr}，请学生先算一算。`;
+      state.feedbackType = "good";
+    }
+  } else if (r.mode === "challenge") {
+    if (card.result === r.target) {
+      card.status = "correct";
+      state.feedback = `对！${card.expr} 的得数就是 ${r.target}。`;
+      state.feedbackType = "good";
+    } else {
+      card.status = "wrong";
+      state.feedback = `再试一试，${card.expr} 的得数不是 ${r.target}。`;
+      state.feedbackType = "try";
+    }
+  } else {
+    state.feedback = `${card.expr} 的得数是 ${card.result}。请学生说一说。`;
+    state.feedbackType = "good";
+  }
+}
+
+function bindReview(tool) {
+  const r = state.review;
   document.querySelectorAll("[data-review]").forEach((button) => {
     button.addEventListener("click", () => {
-      const text = button.dataset.review === "sort" ? "可以把卡片按得数、按加法减法、按数序来整理。" : "请快速说出一张卡片的得数或故事。";
-      setFeedback(text, "good");
+      const action = button.dataset.review;
+      if (action === "quiz") {
+        r.mode = "quiz";
+        r.quizIndex = Math.floor(Math.random() * r.cards.length);
+        r.revealed = false;
+        r.cards.forEach((card) => { card.status = ""; });
+        setFeedback("随机抽到一张卡片（已放大），请学生算出得数。", "good");
+      } else if (action === "challenge") {
+        r.mode = "challenge";
+        r.cards.forEach((card) => { card.status = ""; });
+        const results = [...new Set(r.cards.map((card) => card.result))];
+        r.target = results[Math.floor(Math.random() * results.length)];
+        setFeedback(`挑战开始：找出所有得数是 ${r.target} 的算式。`, "good");
+      } else if (action === "sort") {
+        r.cards.sort((a, b) => a.result - b.result || a.expr.localeCompare(b.expr));
+        setFeedback("已按得数从小到大整理好卡片。", "good");
+      } else {
+        state.review = null;
+        setFeedback("卡片已重新摆放。", "good");
+      }
+    });
+  });
+
+  // 卡片：拖动排序 + 轻点（抽问揭晓 / 挑战判对错 / 说得数）
+  let drag = null;
+  els.stage.querySelectorAll("[data-card-index]").forEach((el) => {
+    el.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      drag = { idx: Number(el.dataset.cardIndex), sx: event.clientX, sy: event.clientY, moved: false, el };
+      if (el.setPointerCapture) el.setPointerCapture(event.pointerId);
+    });
+    el.addEventListener("pointermove", (event) => {
+      if (!drag || drag.el !== el) return;
+      if (!drag.moved && Math.hypot(event.clientX - drag.sx, event.clientY - drag.sy) > 6) {
+        drag.moved = true;
+        el.style.opacity = "0.4";
+      }
+    });
+    el.addEventListener("pointerup", (event) => {
+      if (!drag || drag.el !== el) return;
+      if (drag.moved) {
+        const target = document.elementFromPoint(event.clientX, event.clientY);
+        const targetCard = target && target.closest("[data-card-index]");
+        if (targetCard) {
+          const to = Number(targetCard.dataset.cardIndex);
+          const moved = r.cards.splice(drag.idx, 1)[0];
+          r.cards.splice(to, 0, moved);
+        }
+      } else {
+        reviewCardTap(r, drag.idx);
+      }
+      drag = null;
+      render();
     });
   });
 }

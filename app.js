@@ -317,9 +317,7 @@ const els = {
   reset: $("#resetTool"),
   code: $("#toolCode"),
   unit: $("#unitName"),
-  pages: $("#pageRange"),
   title: $("#lessonTitle"),
-  objective: $("#lessonObjective"),
   tip: $("#teacherTip"),
   stage: $("#toolStage")
 };
@@ -405,9 +403,7 @@ function render() {
   els.select.value = tool.id;
   els.code.textContent = `${tool.id}-${version}`;
   els.unit.textContent = tool.unit;
-  els.pages.textContent = tool.pages;
   els.title.textContent = tool.title;
-  els.objective.textContent = tool.objective;
   els.tip.textContent = tool.tip;
   els.stage.className = `tool-stage version-${version.toLowerCase()}`;
 
@@ -761,7 +757,7 @@ function renderQuantity(tool) {
     .join("");
   return `
     <div class="board">
-      <div class="objects-grid">${objectHtml(target, { label: version === "A" ? "" : "★" })}</div>
+      <div class="objects-grid" style="grid-template-columns: repeat(${target}, minmax(0, auto))">${objectHtml(target, { label: version === "A" ? "" : "★" })}</div>
     </div>
     <div class="formula-line">
       <span>这里有</span>
@@ -779,7 +775,7 @@ function bindQuantity(tool) {
       if (chosen === state.quantityTarget) {
         const next = state.quantityTarget >= tool.max ? 1 : state.quantityTarget + 1;
         state.quantityTarget = next;
-        setFeedback(`答对了。刚才是 ${chosen} 个，现在换一组新的数量。`, "good");
+        setFeedback(`答对了，是 ${chosen} 个！要不要再试试新的一组？`, "good");
       } else {
         setFeedback(`再数一遍。可以从左到右一个一个点数。`, "try");
       }

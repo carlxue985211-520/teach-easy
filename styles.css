@@ -347,13 +347,9 @@ body[data-version="b"] .hero-note {
 }
 
 .version-a .board {
-  border: 6px solid #344054;
-  background:
-    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px),
-    #1f2a38;
-  background-size: 36px 36px;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  border: 2px solid #c8d1df;
+  background: #f8fafc;
+  box-shadow: inset 0 0 0 1px rgba(31, 42, 56, 0.04);
 }
 
 .version-b .board {

@@ -1294,6 +1294,55 @@ input[type="range"] {
   border: 1px solid #bde0c8;
 }
 
+/* ===== 认识数量：情境场景 + 表情物体 + 答对烟花 ===== */
+.board.count-board {
+  position: relative;
+  background: linear-gradient(180deg, #dff1ff 0 58%, #d2eebb 58%);
+  border-color: #bcd9ef;
+}
+
+.board.count-board::after {
+  content: "🐿️";
+  position: absolute;
+  right: 16px;
+  bottom: 10px;
+  font-size: 36px;
+  opacity: 0.92;
+}
+
+.count-grid {
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+  align-content: center;
+  min-height: 100%;
+  padding: 28px;
+}
+
+.count-item {
+  font-size: clamp(40px, 6vw, 58px);
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  animation: pop 240ms ease both;
+}
+
+.celebrate {
+  position: fixed;
+  font-size: 26px;
+  pointer-events: none;
+  z-index: 9999;
+  transform: translate(-50%, -50%);
+  animation: burst 900ms ease-out forwards;
+}
+
+@keyframes burst {
+  to {
+    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1.4);
+    opacity: 0;
+  }
+}
+
 @keyframes pop {
   from {
     opacity: 0;

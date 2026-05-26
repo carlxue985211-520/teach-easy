@@ -302,6 +302,12 @@ function safeStorageRemove(key) {
   }
 }
 
+// 认识数量教具的物体图标：水果、动物、交通工具等，每答对一组换一种。
+const COUNT_ICONS = [
+  "🍎", "🐰", "🚗", "⭐", "🍊", "🐱", "🚌", "🌸", "🍓", "🐶",
+  "🚲", "🎈", "🍌", "🐤", "✈️", "🍇", "🐻", "🚂", "🍭", "🐞"
+];
+
 const els = {
   select: $("#chapterSelect"),
   versionButtons: [...document.querySelectorAll(".version")],
@@ -334,6 +340,7 @@ function resetState(tool = currentTool()) {
   state = {
     countChoice: null,
     quantityTarget: tool.target || Math.min(tool.max || 5, 5),
+    quantityIcon: 0,
     left: tool.left ?? 3,
     right: tool.right ?? 2,
     mode: tool.mode || "add",
@@ -745,20 +752,45 @@ function objectHtml(count, options = {}) {
 
 function renderQuantity(tool) {
   const target = state.quantityTarget;
+  const icon = COUNT_ICONS[state.quantityIcon % COUNT_ICONS.length];
+  const items = Array.from({ length: target }, (_, i) =>
+    `<span class="count-item" style="animation-delay:${i * 45}ms">${icon}</span>`
+  ).join("");
   const choices = Array.from({ length: tool.max }, (_, index) => index + 1)
     .map((num) => `<button data-choice="${num}">${num}</button>`)
     .join("");
   return `
-    <div class="board">
-      <div class="objects-grid" style="grid-template-columns: repeat(${target}, minmax(0, auto))">${objectHtml(target, { label: version === "A" ? "" : "★" })}</div>
+    <div class="board count-board">
+      <div class="count-grid" style="grid-template-columns: repeat(${target}, minmax(0, auto))">${items}</div>
     </div>
     <div class="formula-line">
       <span>这里有</span>
       <span class="formula-box">?</span>
-      <span>个物体</span>
+      <span>个，数一数。</span>
     </div>
     <div class="number-row">${choices}</div>
   `;
+}
+
+function launchCelebration() {
+  const anchor = els.stage.querySelector(".count-board") || els.stage;
+  const rect = anchor.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  const emojis = ["🎉", "✨", "🎊", "⭐", "🌟"];
+  for (let i = 0; i < 14; i += 1) {
+    const piece = document.createElement("span");
+    piece.className = "celebrate";
+    piece.textContent = emojis[i % emojis.length];
+    piece.style.left = `${cx}px`;
+    piece.style.top = `${cy}px`;
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 80 + Math.random() * 130;
+    piece.style.setProperty("--dx", `${Math.cos(angle) * dist}px`);
+    piece.style.setProperty("--dy", `${Math.sin(angle) * dist}px`);
+    document.body.appendChild(piece);
+    setTimeout(() => piece.remove(), 1000);
+  }
 }
 
 function bindQuantity(tool) {
@@ -768,6 +800,8 @@ function bindQuantity(tool) {
       if (chosen === state.quantityTarget) {
         const next = state.quantityTarget >= tool.max ? 1 : state.quantityTarget + 1;
         state.quantityTarget = next;
+        state.quantityIcon += 1;
+        launchCelebration();
         setFeedback(`答对了，是 ${chosen} 个！要不要再试试新的一组？`, "good");
       } else {
         setFeedback(`再数一遍。可以从左到右一个一个点数。`, "try");
@@ -1283,6 +1317,9 @@ function renderHidePart(tool) {
           <div class="objects-grid">${objectHtml(hidden, { label: "?" })}</div>
         </div>
       </div>
+    </div>
+    <div class="formula-line">
+      <span class="formula-box">${state.visible}</span><span>+</span><span class="formula-box">${hidden}</span><span>=</span><span class="formula-box">${tool.total}</span>
     </div>
     <div class="formula-line">
       <span class="formula-box">${tool.total}</span><span>-</span><span class="formula-box">${state.visible}</span><span>=</span><span class="formula-box">${hidden}</span>

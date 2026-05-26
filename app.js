@@ -338,6 +338,8 @@ function resetState(tool = currentTool()) {
     right: tool.right ?? 2,
     mode: tool.mode || "add",
     splitLeft: Math.max(1, Math.floor((tool.total || 8) / 2)),
+    splitTotal: tool.total || 8,
+    splitFound: [],
     onesValue: tool.ones || 3,
     visible: tool.visible || 6,
     filled: tool.filled || 7,
@@ -1191,32 +1193,80 @@ function bindReview(tool) {
   });
 }
 
-function renderSplit(tool) {
-  const right = tool.total - state.splitLeft;
+function recordSplit() {
+  if (
+    state.splitLeft >= 1 &&
+    state.splitLeft <= state.splitTotal - 1 &&
+    !state.splitFound.includes(state.splitLeft)
+  ) {
+    state.splitFound.push(state.splitLeft);
+  }
+}
+
+function renderSplit() {
+  const total = state.splitTotal;
+  state.splitLeft = clamp(state.splitLeft, 1, total - 1);
+  recordSplit();
+  const left = state.splitLeft;
+  const right = total - left;
+  const ways = total - 1;
+
+  const numbers = [6, 7, 8, 9]
+    .map((n) => `<button class="${n === total ? "primary" : ""}" data-split-num="${n}">${n}</button>`)
+    .join("");
+  const dots = Array.from({ length: total }, (_, i) =>
+    `<button class="split-dot ${i < left ? "left" : "right"}" data-split-pos="${i + 1}"></button>`
+  ).join("");
+  const foundList = Array.from({ length: ways }, (_, i) => {
+    const a = i + 1;
+    const b = total - a;
+    const hit = state.splitFound.includes(a);
+    return `<span class="split-way ${hit ? "hit" : ""}">${a} 和 ${b}</span>`;
+  }).join("");
+
   return `
-    <div class="split-board">
-      <div class="bin">
-        <h4>第一堆：${state.splitLeft}</h4>
-        <div class="objects-grid">${objectHtml(state.splitLeft)}</div>
-      </div>
-      <div class="bin">
-        <h4>第二堆：${right}</h4>
-        <div class="objects-grid">${objectHtml(right)}</div>
+    <div class="board split-board-v">
+      <div class="number-row">${numbers}</div>
+      <div class="split-row">${dots}</div>
+      <div class="split-heaps">
+        <div class="bin"><h4>第一堆：${left}</h4><div class="objects-grid">${objectHtml(left)}</div></div>
+        <div class="bin"><h4>第二堆：${right}</h4><div class="objects-grid">${objectHtml(right)}</div></div>
       </div>
     </div>
     <div class="formula-line">
-      <span class="formula-box">${tool.total}</span><span>可以分成</span><span class="formula-box">${state.splitLeft}</span><span>和</span><span class="formula-box">${right}</span>
+      <span class="formula-box">${total}</span><span>分成</span><span class="formula-box">${left}</span><span>和</span><span class="formula-box">${right}</span>
     </div>
-    <input type="range" min="1" max="${tool.total - 1}" value="${state.splitLeft}" data-split />
+    <div class="split-found">
+      <strong>已找到 ${state.splitFound.length} / ${ways} 种分法：</strong>
+      <div class="split-ways">${foundList}</div>
+    </div>
+    <div class="action-row"><button data-split-all>显示全部分法</button></div>
+    <p class="builder-hint">先选要分的数，再点上面一排圆点：在第几个后面分开。下面会记录你发现过的分法。</p>
   `;
 }
 
-function bindSplit(tool) {
-  const input = document.querySelector("[data-split]");
-  input.addEventListener("input", () => {
-    state.splitLeft = Number(input.value);
-    setFeedback(`${state.splitLeft} 和 ${tool.total - state.splitLeft} 组成 ${tool.total}。`, "good");
+function bindSplit() {
+  document.querySelectorAll("[data-split-num]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.splitTotal = Number(button.dataset.splitNum);
+      state.splitLeft = clamp(state.splitLeft, 1, state.splitTotal - 1);
+      state.splitFound = [];
+      setFeedback(`现在分 ${state.splitTotal}，点圆点试试不同的分法。`, "good");
+    });
   });
+  document.querySelectorAll("[data-split-pos]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.splitLeft = Number(button.dataset.splitPos);
+      setFeedback(`${state.splitLeft} 和 ${state.splitTotal - state.splitLeft} 组成 ${state.splitTotal}。`, "good");
+    });
+  });
+  const showAll = document.querySelector("[data-split-all]");
+  if (showAll) {
+    showAll.addEventListener("click", () => {
+      state.splitFound = Array.from({ length: state.splitTotal - 1 }, (_, i) => i + 1);
+      setFeedback(`${state.splitTotal} 一共有 ${state.splitTotal - 1} 种分法，都列出来了。`, "good");
+    });
+  }
 }
 
 function renderHidePart(tool) {

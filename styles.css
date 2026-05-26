@@ -1224,6 +1224,76 @@ input[type="range"] {
   font-size: 20px;
 }
 
+/* ===== 分与合 ===== */
+.split-board-v {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: auto;
+  padding: 16px;
+}
+
+.split-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  padding: 8px 0;
+}
+
+.split-dot {
+  width: 46px;
+  height: 46px;
+  min-height: 46px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid #c8d1df;
+  cursor: pointer;
+}
+
+.split-dot.left {
+  background: var(--blue);
+  border-color: var(--blue);
+}
+
+.split-dot.right {
+  background: var(--yellow);
+  border-color: #e0b53e;
+}
+
+.split-heaps {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.split-found strong {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--ink);
+}
+
+.split-ways {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.split-way {
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: #eef2f7;
+  color: #8a95a6;
+  border: 1px dashed #c8d1df;
+  font-weight: 800;
+}
+
+.split-way.hit {
+  background: #eaf7ee;
+  color: #276348;
+  border: 1px solid #bde0c8;
+}
+
 @keyframes pop {
   from {
     opacity: 0;

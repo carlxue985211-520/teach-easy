@@ -153,7 +153,7 @@ const tools = [
   {
     id: "T16",
     unit: "第四单元",
-    title: "11-20 的认识与读写",
+    title: "11-20 的认识",
     pages: "PDF 65-69 · 教材 76-80",
     objective: "理解十几由 1 个十和几个一组成，认识十位和个位。",
     tip: "选择数字后，让学生同时读数、说组成、看数位。",
@@ -168,9 +168,9 @@ const tools = [
     objective: "理解 11-20 的顺序、前后关系和大小比较。",
     tip: "用数轴让学生指出前一个、后一个、相邻数。",
     type: "numberLine",
-    min: 10,
+    min: 0,
     max: 20,
-    current: 16
+    current: 10
   },
   {
     id: "T18",
@@ -1431,6 +1431,10 @@ function bindBundle10() {
 function renderPlaceValue() {
   const tens = Math.floor(state.number / 10);
   const ones = state.number % 10;
+  const buttons = Array.from({ length: 10 }, (_, i) => {
+    const n = 11 + i;
+    return `<button data-place="${n}" class="${state.number === n ? "active" : ""}">${n}</button>`;
+  }).join("");
   return `
     <div class="place-board">
       <div class="place-column">
@@ -1445,16 +1449,18 @@ function renderPlaceValue() {
     <div class="formula-line">
       <span class="formula-box">${state.number}</span><span>=</span><span>${tens} 个十和 ${ones} 个一</span>
     </div>
-    <input type="range" min="10" max="20" value="${state.number}" data-place />
+    <div class="number-row">${buttons}</div>
   `;
 }
 
 function bindPlaceValue() {
-  document.querySelector("[data-place]").addEventListener("input", (event) => {
-    state.number = Number(event.target.value);
-    const tens = Math.floor(state.number / 10);
-    const ones = state.number % 10;
-    setFeedback(`${state.number} 里面有 ${tens} 个十和 ${ones} 个一。`, "good");
+  document.querySelectorAll("[data-place]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.number = Number(btn.dataset.place);
+      const tens = Math.floor(state.number / 10);
+      const ones = state.number % 10;
+      setFeedback(`${state.number} 里面有 ${tens} 个十和 ${ones} 个一。`, "good");
+    });
   });
 }
 
@@ -1464,13 +1470,15 @@ function renderNumberLine(tool) {
     const left = 4 + ((num - tool.min) / (tool.max - tool.min)) * 92;
     ticks.push(`<span class="tick ${num === state.lineCurrent ? "active" : ""}" style="left:${left}%">${num}</span>`);
   }
+  const prevStr = state.lineCurrent > tool.min ? String(state.lineCurrent - 1) : "无";
+  const nextStr = state.lineCurrent < tool.max ? String(state.lineCurrent + 1) : "无";
   return `
     <div class="board">
       <div class="number-line">${ticks.join("")}</div>
     </div>
     <div class="formula-line">
       <span>当前数</span><span class="formula-box">${state.lineCurrent}</span>
-      <span>前一个是 ${state.lineCurrent - 1}，后一个是 ${state.lineCurrent + 1}</span>
+      <span>前一个是 ${prevStr}，后一个是 ${nextStr}</span>
     </div>
     <input type="range" min="${tool.min}" max="${tool.max}" value="${state.lineCurrent}" data-line />
   `;
@@ -1557,8 +1565,6 @@ function renderMakeTen() {
       <span>把 ${state.add} 分成</span><span class="formula-box">${need}</span><span>和</span><span class="formula-box">${rest}</span><span>，先凑 10</span>
     </div>
     <div class="action-row">
-      <button data-make="base-down">底数 -1</button>
-      <button data-make="base-up">底数 +1</button>
       <button data-make="add-down">加数 -1</button>
       <button class="primary" data-make="add-up">加数 +1</button>
     </div>
@@ -1568,8 +1574,6 @@ function renderMakeTen() {
 function bindMakeTen() {
   document.querySelectorAll("[data-make]").forEach((button) => {
     button.addEventListener("click", () => {
-      if (button.dataset.make === "base-down") state.base = clamp(state.base - 1, 6, 9);
-      if (button.dataset.make === "base-up") state.base = clamp(state.base + 1, 6, 9);
       if (button.dataset.make === "add-down") state.add = clamp(state.add - 1, 2, 9);
       if (button.dataset.make === "add-up") state.add = clamp(state.add + 1, 2, 9);
       if (state.add < 10 - state.base) state.add = 10 - state.base;
@@ -1597,6 +1601,7 @@ function renderCommutative() {
     </div>
     <div class="action-row">
       <button class="primary" data-swap>交换左右</button>
+      <button data-shuffle-comm>换一题</button>
     </div>
   `;
 }
@@ -1606,6 +1611,18 @@ function bindCommutative() {
     state.swap = !state.swap;
     setFeedback("两个加数交换位置，合起来的总数不变。", "good");
   });
+  const shuffleBtn = document.querySelector("[data-shuffle-comm]");
+  if (shuffleBtn) {
+    shuffleBtn.addEventListener("click", () => {
+      // 进位加法范围：两个加数之和 ≥ 11，均在 2-9 之间
+      const pairs = [[9,2],[9,3],[9,4],[9,5],[9,6],[9,7],[9,8],[8,3],[8,4],[8,5],[8,6],[8,7],[7,4],[7,5],[7,6],[6,5]];
+      const [a, b] = pairs[Math.floor(Math.random() * pairs.length)];
+      state.left = a;
+      state.right = b;
+      state.swap = false;
+      setFeedback(`新算式：${a} + ${b} = ${a + b}，交换后 ${b} + ${a} 结果不变。`, "good");
+    });
+  }
 }
 
 function renderProblem(tool) {
@@ -1614,12 +1631,18 @@ function renderProblem(tool) {
     ? "前排有 7 人，后排有 8 人。一共有多少人？"
     : "领走了 6 个足球，还剩 5 个。原来有多少个足球？";
   const formula = totalMode ? "7 + 8 = 15" : "6 + 5 = 11";
+  // T25 B版：用足球 emoji 替换通用方块
+  const useFootball = !totalMode && version !== "A";
+  const objFn = useFootball
+    ? (n) => Array.from({ length: n }, (_, i) =>
+        `<span class="count-item" style="font-size:28px;animation-delay:${i * 35}ms">⚽</span>`).join("")
+    : objectHtml;
   return `
     <div class="problem-panel">
       <p>${sentence}</p>
       <div class="split-board">
-        <div class="bin"><h4>${totalMode ? "前排" : "领走"}</h4><div class="objects-grid">${objectHtml(totalMode ? 7 : 6)}</div></div>
-        <div class="bin"><h4>${totalMode ? "后排" : "还剩"}</h4><div class="objects-grid">${objectHtml(totalMode ? 8 : 5)}</div></div>
+        <div class="bin"><h4>${totalMode ? "前排" : "领走"}</h4><div class="objects-grid">${objFn(totalMode ? 7 : 6)}</div></div>
+        <div class="bin"><h4>${totalMode ? "后排" : "还剩"}</h4><div class="objects-grid">${objFn(totalMode ? 8 : 5)}</div></div>
       </div>
       <div class="formula-line"><span>${formula}</span></div>
     </div>

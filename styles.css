@@ -1433,3 +1433,69 @@ input[type="range"] {
   flex-wrap: wrap;
   gap: 6px;
 }
+
+/* ===== H2/H3: 小方块摞 ===== */
+.block-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+}
+.block-unit {
+  width: 38px;
+  height: 18px;
+  border-radius: 4px;
+  background: linear-gradient(135deg, #7ec8e3 0%, #2a7ce6 100%);
+  border: 1px solid #1a5ab4;
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.15);
+  animation: pop 220ms ease both;
+}
+
+/* ===== H2/H3: 计数器（算盘）===== */
+.counter-frame {
+  display: flex;
+  gap: 40px;
+  justify-content: center;
+  align-items: flex-end;
+  padding: 16px 24px 8px;
+}
+.counter-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.counter-beads {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 140px;
+  justify-content: flex-end;
+  align-items: center;
+}
+.counter-pole {
+  width: 6px;
+  height: 10px;
+  background: #8b5e3c;
+  border-radius: 0 0 3px 3px;
+  margin-top: 2px;
+}
+.counter-bead {
+  width: 32px;
+  height: 20px;
+  border-radius: 50%;
+  animation: pop 220ms ease both;
+}
+.counter-bead.ones {
+  background: radial-gradient(circle at 35% 35%, #ffd7c8, var(--red));
+  border: 2px solid #b04000;
+}
+.counter-bead.tens {
+  background: radial-gradient(circle at 35% 35%, #d8eaff, var(--blue));
+  border: 2px solid #1a5ab4;
+}
+.counter-col-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #555;
+  margin-top: 6px;
+}

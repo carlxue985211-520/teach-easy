@@ -388,6 +388,8 @@ function resetState(tool = currentTool()) {
     t09Verified: false,     // T09 B版：验证前隐藏公式结果
     lineRevealed: false,    // T17 验证前不显示前一个/后一个
     lineCompare: Math.min(((tool.current || 10) + 5), (tool.max || 20)), // T17 比较数
+    t15Manip: "rod",        // T15 学具类型：rod / block / counter
+    t16Manip: "rod",        // T16 学具类型：rod / block / counter
     t20Mode: "recognize",   // T20 模式：recognize / calc
     commRevealed: false,    // T23 A版：验证前隐藏答案
     problem24Index: 0,      // T24 当前题目序号
@@ -1590,29 +1592,97 @@ function bindBuild() {
   });
 }
 
+// ===== 学具辅助渲染 =====
+// 小方块摞：n 块叠起来（用于"1 个十 = 1 摞"演示）
+function renderBlockStackHtml(n) {
+  const units = Array.from({ length: n }, () => `<span class="block-unit"></span>`).join("");
+  return `<div class="block-stack">${units}</div>`;
+}
+
+// 计数器（算盘）：两极，左=十位，右=个位
+function renderCounterHtml(tens, ones) {
+  const makeCol = (label, count, cls) => {
+    const beads = Array.from({ length: count }, (_, i) =>
+      `<span class="counter-bead ${cls}" style="animation-delay:${i * 40}ms"></span>`
+    ).join("");
+    return `<div class="counter-col">
+      <div class="counter-beads">${beads}</div>
+      <div class="counter-pole"></div>
+      <span class="counter-col-label">${label}</span>
+    </div>`;
+  };
+  return `<div class="counter-frame">
+    ${makeCol("十位", tens, "tens")}
+    ${makeCol("个位", ones, "ones")}
+  </div>`;
+}
+
 function renderBundle10() {
+  const manip = state.t15Manip || "rod";
+  const bundled = state.bundled;
+  const manipBtns = `<div class="action-row">
+    <button class="${manip === "rod"     ? "primary" : ""}" data-t15manip="rod">小棒</button>
+    <button class="${manip === "block"   ? "primary" : ""}" data-t15manip="block">小方块</button>
+    <button class="${manip === "counter" ? "primary" : ""}" data-t15manip="counter">计数器</button>
+  </div>`;
+  const formula = `<div class="formula-line"><span class="formula-box">10 个一</span><span>=</span><span class="formula-box">1 个十</span></div>`;
+
+  // 计数器：单帧算盘，十位/个位珠数随 bundled 切换
+  if (manip === "counter") {
+    const toggleLabel = bundled ? "移回个位（10 颗）" : "移到十位（1 颗）";
+    return `
+      <div class="board" style="display:flex;justify-content:center;align-items:center;min-height:220px">
+        ${renderCounterHtml(bundled ? 1 : 0, bundled ? 0 : 10)}
+      </div>
+      ${formula}
+      <div class="action-row"><button class="primary" data-bundle="toggle">${toggleLabel}</button></div>
+      ${manipBtns}
+    `;
+  }
+
+  // 小棒 / 小方块：左右两列，左=散，右=捆/摞
+  const leftContent  = bundled ? ""
+    : (manip === "rod" ? objectHtml(10, { shape: "rod" }) : objectHtml(10, { shape: "square" }));
+  const rightContent = !bundled ? ""
+    : (manip === "rod" ? `<span class="bundle"></span>` : renderBlockStackHtml(10));
+  const toggleLabel  = bundled
+    ? (manip === "rod" ? "拆成 10 根" : "拆成 10 块")
+    : (manip === "rod" ? "捆成 1 捆"  : "叠成 1 摞");
+
   return `
     <div class="place-board">
       <div class="place-column">
         <h4>10 个一</h4>
-        <div class="objects-grid">${state.bundled ? "" : objectHtml(10, { shape: "rod" })}</div>
+        <div class="objects-grid">${leftContent}</div>
       </div>
       <div class="place-column">
         <h4>1 个十</h4>
-        <div class="objects-grid">${state.bundled ? `<span class="bundle"></span>` : ""}</div>
+        <div class="objects-grid">${rightContent}</div>
       </div>
     </div>
-    <div class="formula-line"><span class="formula-box">10 个一</span><span>=</span><span class="formula-box">1 个十</span></div>
-    <div class="action-row">
-      <button class="primary" data-bundle="toggle">${state.bundled ? "拆成 10 根" : "捆成 1 捆"}</button>
-    </div>
+    ${formula}
+    <div class="action-row"><button class="primary" data-bundle="toggle">${toggleLabel}</button></div>
+    ${manipBtns}
   `;
 }
 
 function bindBundle10() {
   document.querySelector("[data-bundle]").addEventListener("click", () => {
     state.bundled = !state.bundled;
-    setFeedback(state.bundled ? "10 根小棒捆在一起，就是 1 个十。" : "把 1 个十拆开，又是 10 个一。", "good");
+    const manip = state.t15Manip || "rod";
+    const msgs = {
+      rod:     state.bundled ? "10 根小棒捆在一起，就是 1 个十。"      : "把 1 个十拆开，又是 10 个一。",
+      block:   state.bundled ? "10 个小方块叠成一摞，就是 1 个十。"    : "把 1 摞拆开，又是 10 个一。",
+      counter: state.bundled ? "个位 10 颗移到十位，十位记 1 颗。"    : "十位的 1 颗拨回个位，变成 10 颗。"
+    };
+    setFeedback(msgs[manip], "good");
+  });
+  document.querySelectorAll("[data-t15manip]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.t15Manip = btn.dataset.t15manip;
+      state.bundled = false;
+      setFeedback(`换成${btn.textContent}演示，初始显示 10 个一。`, "good");
+    });
   });
 }
 
@@ -1672,6 +1742,54 @@ function renderPlaceValue(tool) {
     `;
   }
 
+  // T16 专属：三种学具切换（小棒 / 小方块 / 计数器）
+  if (tool && tool.id === "T16") {
+    const manip = state.t16Manip || "rod";
+    const manipBtns = `<div class="action-row">
+      <button class="${manip === "rod"     ? "primary" : ""}" data-t16manip="rod">小棒</button>
+      <button class="${manip === "block"   ? "primary" : ""}" data-t16manip="block">小方块</button>
+      <button class="${manip === "counter" ? "primary" : ""}" data-t16manip="counter">计数器</button>
+    </div>`;
+    const formula = `<div class="formula-line">
+      <span class="formula-box">${state.number}</span><span>=</span><span>${tens} 个十和 ${ones} 个一</span>
+    </div>`;
+
+    if (manip === "counter") {
+      return `
+        <div class="board" style="display:flex;justify-content:center;align-items:center;min-height:220px">
+          ${renderCounterHtml(tens, ones)}
+        </div>
+        ${formula}
+        <div class="number-row">${buttons}</div>
+        ${manipBtns}
+      `;
+    }
+
+    const tensVisual = manip === "block"
+      ? renderBlockStackHtml(10)
+      : `<span class="bundle"></span>`;
+    const onesVisual = manip === "block"
+      ? objectHtml(ones, { shape: "square" })
+      : objectHtml(ones);
+
+    return `
+      <div class="place-board">
+        <div class="place-column">
+          <h4>十位：${tens}</h4>
+          <div class="objects-grid">${tensVisual}</div>
+        </div>
+        <div class="place-column">
+          <h4>个位：${ones}</h4>
+          <div class="objects-grid">${onesVisual}</div>
+        </div>
+      </div>
+      ${formula}
+      <div class="number-row">${buttons}</div>
+      ${manipBtns}
+    `;
+  }
+
+  // 默认（其他 placeValue 工具）
   return `
     <div class="place-board">
       <div class="place-column">
@@ -1708,6 +1826,12 @@ function bindPlaceValue(tool) {
     btn.addEventListener("click", () => {
       state.t20Mode = btn.dataset.t20mode;
       setFeedback(state.t20Mode === "calc" ? "切换到加减法：看 10+几 和相应的减法。" : "切换到认识数：看十位个位组成。", "good");
+    });
+  });
+  document.querySelectorAll("[data-t16manip]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.t16Manip = btn.dataset.t16manip;
+      setFeedback(`换成${btn.textContent}展示，十位 1 个十，个位散开的几个一。`, "good");
     });
   });
 }

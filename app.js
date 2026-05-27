@@ -18,7 +18,7 @@ const tools = [
     objective: "用合起来、去掉来理解加法和减法。",
     tip: "演示前先让学生说图意，再出现算式。",
     type: "builder",
-    builder: { modes: ["add", "sub"], boxCount: 2, pool: 5, init: { add: [3, 1], subMinuend: 5 } }
+    builder: { modes: ["add", "sub"], boxCount: 2, pool: 5, init: { add: [3, 1], subMinuend: 5 }, revealButton: true }
   },
   {
     id: "T03",
@@ -76,11 +76,10 @@ const tools = [
     unit: "第二单元",
     title: "8 和 9 的加、减法",
     pages: "PDF 39-42 · 教材 50-53",
-    objective: "通过遮住一部分理解减法中的整体、部分和另一部分。",
-    tip: "盖住后让学生先猜，再显示算式。",
-    type: "hidePart",
-    total: 9,
-    visible: 6
+    objective: "根据 8、9 的分合看图列加减算式。",
+    tip: "先说左边、右边各有几个，再判断用加法还是减法。",
+    type: "builder",
+    builder: { modes: ["add", "sub"], boxCount: 2, pool: 9, init: { add: [6, 3], subMinuend: 9 } }
   },
   {
     id: "T09",
@@ -308,6 +307,32 @@ const COUNT_ICONS = [
   "🚲", "🎈", "🍌", "🐤", "✈️", "🍇", "🐻", "🚂", "🍭", "🐞"
 ];
 
+// B版数量题：和图标对应的中文名称（用于题干"几个X"）
+const ICON_NAMES = [
+  "苹果","小兔","小汽车","星星","橙子","小猫","大巴车","花朵","草莓","小狗",
+  "自行车","气球","香蕉","小鸡","飞机","葡萄","小熊","火车","棒棒糖","瓢虫"
+];
+
+// T24 解决问题：一共有多少 — 多题备选
+const PROBLEMS_TOTAL = [
+  { a: 7, b: 8, labelA: "前排", labelB: "后排", unit: "人" },
+  { a: 6, b: 9, labelA: "男生", labelB: "女生", unit: "人" },
+  { a: 8, b: 5, labelA: "苹果", labelB: "梨", unit: "个" },
+  { a: 9, b: 4, labelA: "红气球", labelB: "蓝气球", unit: "个" },
+  { a: 7, b: 6, labelA: "跳绳", labelB: "踢球", unit: "人" },
+  { a: 8, b: 7, labelA: "男生", labelB: "女生", unit: "人" }
+];
+
+// T25 解决问题：原来有多少 — 多题备选
+const PROBLEMS_ORIGINAL = [
+  { took: 6, left: 5, item: "足球" },
+  { took: 5, left: 7, item: "苹果" },
+  { took: 8, left: 4, item: "铅笔" },
+  { took: 9, left: 3, item: "球" },
+  { took: 7, left: 6, item: "本子" },
+  { took: 4, left: 8, item: "橙子" }
+];
+
 const els = {
   select: $("#chapterSelect"),
   versionButtons: [...document.querySelectorAll(".version")],
@@ -359,6 +384,10 @@ function resetState(tool = currentTool()) {
     base: tool.base || 9,
     add: tool.add || 4,
     swap: false,
+    t09Mode: "count",       // T09 三模式：count / split / calc
+    lineRevealed: false,    // T17 验证前不显示前一个/后一个
+    problem24Index: 0,      // T24 当前题目序号
+    problem25Index: 0,      // T25 当前题目序号
     builder: null,
     review: null,
     feedback: "选择一个动作，开始课堂演示。"
@@ -753,21 +782,22 @@ function objectHtml(count, options = {}) {
 function renderQuantity(tool) {
   const target = state.quantityTarget;
   const icon = COUNT_ICONS[state.quantityIcon % COUNT_ICONS.length];
+  const iconName = ICON_NAMES[state.quantityIcon % ICON_NAMES.length];
   const items = Array.from({ length: target }, (_, i) =>
     `<span class="count-item" style="animation-delay:${i * 45}ms">${icon}</span>`
   ).join("");
   const choices = Array.from({ length: tool.max }, (_, index) => index + 1)
     .map((num) => `<button data-choice="${num}">${num}</button>`)
     .join("");
+  // B版：题干加上物体名称，避免混淆
+  const questionHtml = version !== "A"
+    ? `<div class="formula-line"><span>数一数，这里有几个${escapeHtml(iconName)}？</span></div>`
+    : `<div class="formula-line"><span>这里有</span><span class="formula-box">?</span><span>个，数一数。</span></div>`;
   return `
     <div class="board count-board">
       <div class="count-grid" style="grid-template-columns: repeat(${target}, minmax(0, auto))">${items}</div>
     </div>
-    <div class="formula-line">
-      <span>这里有</span>
-      <span class="formula-box">?</span>
-      <span>个，数一数。</span>
-    </div>
+    ${questionHtml}
     <div class="number-row">${choices}</div>
   `;
 }
@@ -798,7 +828,17 @@ function bindQuantity(tool) {
     button.addEventListener("click", () => {
       const chosen = Number(button.dataset.choice);
       if (chosen === state.quantityTarget) {
-        const next = state.quantityTarget >= tool.max ? 1 : state.quantityTarget + 1;
+        // T05（max > 5）：偏向 6-9 的随机，避免连续同一个数
+        let next;
+        if (tool.max > 5) {
+          do {
+            next = Math.random() < 0.7
+              ? 6 + Math.floor(Math.random() * (tool.max - 5))   // 70% 概率选 6-max
+              : 1 + Math.floor(Math.random() * 5);                // 30% 概率选 1-5
+          } while (next === state.quantityTarget);
+        } else {
+          next = state.quantityTarget >= tool.max ? 1 : state.quantityTarget + 1;
+        }
         state.quantityTarget = next;
         state.quantityIcon += 1;
         launchCelebration();
@@ -849,7 +889,7 @@ function ensureBuilder(tool) {
   const cfg = builderConfig(tool);
   if (!state.builder) {
     const mode = (cfg.modes && cfg.modes[0]) || "add";
-    state.builder = { mode, tokens: initBuilderTokens(tool, mode) };
+    state.builder = { mode, tokens: initBuilderTokens(tool, mode), revealed: false };
   }
   return state.builder;
 }
@@ -902,7 +942,9 @@ function renderBuilder(tool) {
   const boxes = builderBoxCount(tool);
   const { counts } = builderCounts(tool);
   const formula = builderFormula(tool);
-  const labels = mode === "sub" ? ["一共"] : (cfg.boxLabels || ["第一部分", "第二部分", "第三部分"]);
+  const labels = mode === "sub"
+    ? ["共（点击方块打 ×）"]
+    : (cfg.boxLabels || ["第一部分", "第二部分", "第三部分"]);
 
   let boxesHtml = "";
   for (let i = 0; i < boxes; i += 1) {
@@ -918,11 +960,18 @@ function renderBuilder(tool) {
       </div>`;
   }
 
+  // 减法/混合模式隐藏仓库，避免学生误解仓库方块是"要减掉的"
+  const showPool = mode !== "sub" && mode !== "mix";
   const poolTokens = state.builder.tokens
     .map((token, index) => ({ token, index }))
     .filter((item) => item.token.loc === "pool")
     .map((item) => builderTokenHtml(item.index, item.token))
     .join("");
+  const poolHtml = showPool ? `
+    <div class="builder-pool" data-zone="pool">
+      <span class="builder-pool-label">方块备用区（拖进方框）</span>
+      <div class="builder-slot">${poolTokens}</div>
+    </div>` : "";
 
   const modeToggle = cfg.modes && cfg.modes.length > 1
     ? `<div class="action-row">
@@ -931,25 +980,34 @@ function renderBuilder(tool) {
       </div>`
     : "";
 
-  const examples = cfg.examples
+  // M4：算式例题仅在 A 版显示（B 版去掉与图无关的四个按钮）
+  const examples = cfg.examples && version === "A"
     ? `<div class="symbol-row">${cfg.examples.map((expr) => `<button data-bexample="${escapeHtml(expr)}">${escapeHtml(expr.replaceAll("+", " + ").replaceAll("-", " − ").replaceAll("=", " = "))}</button>`).join("")}</div>`
     : "";
 
-  const hint = (mode === "sub" || mode === "mix")
-    ? "拖动方块进出方框改变数量；点方框里的方块打 × 表示去掉。"
-    : "把下面仓库里的方块拖进方框，算式会自动变化。";
+  const hint = mode === "sub"
+    ? "点击方框里的方块打 × 表示减去；再次点击取消。"
+    : mode === "mix"
+    ? "先在两个框里放好方块；点击方框里的方块打 × 表示减去；算式跟着变化。"
+    : "把下面的方块拖进左框或右框，算式自动相加。";
+
+  // M3：T02 A版加法模式 — 拖动后先不显示答案，按钮揭示
+  const revealable = cfg.revealButton && version === "A" && mode === "add";
+  const formulaHtml = (revealable && !state.builder.revealed)
+    ? `<div class="formula-line" style="opacity:0.35;user-select:none">
+         <span>${formula.left}</span><span>=</span><span class="formula-box">?</span>
+       </div>
+       <div class="action-row"><button data-brev class="primary">看答案</button></div>`
+    : `<div class="formula-line">
+         <span>${formula.left}</span><span>=</span><span class="formula-box">${formula.result}</span>
+       </div>`;
 
   return `
     <div class="board builder-board">
       <div class="builder-boxes" style="grid-template-columns: repeat(${boxes}, 1fr)">${boxesHtml}</div>
-      <div class="builder-pool" data-zone="pool">
-        <span class="builder-pool-label">方块仓库（拖出 / 拖回）</span>
-        <div class="builder-slot">${poolTokens}</div>
-      </div>
+      ${poolHtml}
     </div>
-    <div class="formula-line">
-      <span>${formula.left}</span><span>=</span><span class="formula-box">${formula.result}</span>
-    </div>
+    ${formulaHtml}
     ${modeToggle}
     ${examples}
     <p class="builder-hint">${hint}</p>
@@ -1001,10 +1059,11 @@ function bindBuilder(tool) {
     button.addEventListener("click", () => {
       state.builder.mode = button.dataset.bmode;
       state.builder.tokens = initBuilderTokens(tool, state.builder.mode);
+      state.builder.revealed = false;
       setFeedback(
         state.builder.mode === "add"
           ? "把方块拖进两个方框，再数一数合起来是多少。"
-          : "先在方框里放好方块，再点方块打 × 表示去掉，看看还剩几个。",
+          : "点击方框里的方块打 × 表示减去，看看还剩几个。",
         "good"
       );
     });
@@ -1012,6 +1071,13 @@ function bindBuilder(tool) {
 
   document.querySelectorAll("[data-bexample]").forEach((button) => {
     button.addEventListener("click", () => applyBuilderExample(tool, button.dataset.bexample));
+  });
+
+  // M3：看答案按钮（T02 A版加法模式）
+  document.querySelector("[data-brev]")?.addEventListener("click", () => {
+    state.builder.revealed = true;
+    const f = builderFormula(tool);
+    setFeedback(`合起来是 ${f.result}，请学生核对画面中的数量。`, "good");
   });
 
   bindBuilderDrag();
@@ -1067,6 +1133,7 @@ function bindBuilderDrag() {
         token.loc = "box0";
       }
       drag = null;
+      if (state.builder) state.builder.revealed = false;  // 每次操作重置揭示状态
       render();
     });
   });
@@ -1340,22 +1407,90 @@ function tenCells(filled) {
 }
 
 function renderTenFrame(tool) {
-  const missing = tool.total - state.filled;
+  const total = tool.total || 10;
+  const a = state.filled;
+  const b = total - a;
+  const mode = state.t09Mode || "count";
+
+  const modeBtns = `
+    <div class="action-row">
+      <button class="${mode === "count" ? "primary" : ""}" data-t9mode="count">认识 ${total}</button>
+      <button class="${mode === "split" ? "primary" : ""}" data-t9mode="split">分与合</button>
+      <button class="${mode === "calc" ? "primary" : ""}" data-t9mode="calc">加减法</button>
+    </div>`;
+
+  if (mode === "split") {
+    // 显示 0~floor(total/2) 所有分法，可点击切换高亮
+    const splitBtns = Array.from({ length: Math.floor(total / 2) + 1 }, (_, i) => {
+      const x = i, y = total - i;
+      return `<button class="${a === x ? "active" : ""}" data-fill="${x}">${x} + ${y}</button>`;
+    }).join("");
+    return `
+      <div class="board">
+        <div class="ten-frame">${tenCells(a)}</div>
+      </div>
+      <div class="formula-line">
+        <span class="formula-box">${a}</span><span>和</span><span class="formula-box">${b}</span>
+        <span>合成</span><span class="formula-box">${total}</span>
+      </div>
+      <div class="number-row">${splitBtns}</div>
+      ${modeBtns}`;
+  }
+
+  if (mode === "calc") {
+    return `
+      <div class="board">
+        <div class="ten-frame">${tenCells(a)}</div>
+      </div>
+      <div class="formula-line">
+        <span class="formula-box">${a}</span><span>+</span><span class="formula-box">${b}</span><span>=</span><span class="formula-box">${total}</span>
+      </div>
+      <div class="formula-line">
+        <span class="formula-box">${total}</span><span>−</span><span class="formula-box">${a}</span><span>=</span><span class="formula-box">${b}</span>
+        <span style="padding:0 14px;color:#aaa">|</span>
+        <span class="formula-box">${total}</span><span>−</span><span class="formula-box">${b}</span><span>=</span><span class="formula-box">${a}</span>
+      </div>
+      <input type="range" min="0" max="${total}" value="${a}" data-ten-frame />
+      ${modeBtns}`;
+  }
+
+  // count 模式（默认）
   return `
     <div class="board">
-      <div class="ten-frame">${tenCells(state.filled)}</div>
+      <div class="ten-frame">${tenCells(a)}</div>
     </div>
     <div class="formula-line">
-      <span class="formula-box">${state.filled}</span><span>+</span><span class="formula-box">${missing}</span><span>=</span><span class="formula-box">10</span>
+      <span class="formula-box">${a}</span><span>+</span><span class="formula-box">${b}</span><span>=</span><span class="formula-box">${total}</span>
     </div>
-    <input type="range" min="0" max="10" value="${state.filled}" data-ten-frame />
-  `;
+    <input type="range" min="0" max="${total}" value="${a}" data-ten-frame />
+    ${modeBtns}`;
 }
 
-function bindTenFrame() {
-  document.querySelector("[data-ten-frame]").addEventListener("input", (event) => {
-    state.filled = Number(event.target.value);
-    setFeedback(`还差 ${10 - state.filled} 个就凑成 10。`, "good");
+function bindTenFrame(tool) {
+  const total = tool.total || 10;
+  const rangeEl = document.querySelector("[data-ten-frame]");
+  if (rangeEl) {
+    rangeEl.addEventListener("input", (event) => {
+      state.filled = Number(event.target.value);
+      setFeedback(`还差 ${total - state.filled} 个就凑成 ${total}。`, "good");
+    });
+  }
+  document.querySelectorAll("[data-fill]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.filled = Number(btn.dataset.fill);
+      setFeedback(`${state.filled} 和 ${total - state.filled} 合成 ${total}。`, "good");
+    });
+  });
+  document.querySelectorAll("[data-t9mode]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.t09Mode = btn.dataset.t9mode;
+      const msgs = {
+        count: `数一数格子里填了几个，空了几格，合起来是 ${total}。`,
+        split: `点一对，看看哪两个数合成 ${total}。`,
+        calc: `根据画面同时列出加法和减法算式。`
+      };
+      setFeedback(msgs[state.t09Mode] || "", "good");
+    });
   });
 }
 
@@ -1472,27 +1607,40 @@ function renderNumberLine(tool) {
   }
   const prevStr = state.lineCurrent > tool.min ? String(state.lineCurrent - 1) : "无";
   const nextStr = state.lineCurrent < tool.max ? String(state.lineCurrent + 1) : "无";
+  const revealed = state.lineRevealed;
   return `
     <div class="board">
       <div class="number-line">${ticks.join("")}</div>
     </div>
     <div class="formula-line">
       <span>当前数</span><span class="formula-box">${state.lineCurrent}</span>
-      <span>前一个是 ${prevStr}，后一个是 ${nextStr}</span>
+      <span>前一个是 ${revealed ? prevStr : "?"}，后一个是 ${revealed ? nextStr : "?"}</span>
     </div>
+    ${!revealed ? `<div class="action-row"><button data-linrev class="primary">验证答案</button></div>` : ""}
     <input type="range" min="${tool.min}" max="${tool.max}" value="${state.lineCurrent}" data-line />
   `;
 }
 
-function bindNumberLine() {
+function bindNumberLine(tool) {
   document.querySelector("[data-line]").addEventListener("input", (event) => {
     state.lineCurrent = Number(event.target.value);
-    setFeedback(`${state.lineCurrent} 在数轴上的位置已经标出。`, "good");
+    state.lineRevealed = false;
+    setFeedback("想一想，这个数的前一个和后一个是什么？", "good");
+  });
+  document.querySelector("[data-linrev]")?.addEventListener("click", () => {
+    const prevStr = state.lineCurrent > tool.min ? String(state.lineCurrent - 1) : "无";
+    const nextStr = state.lineCurrent < tool.max ? String(state.lineCurrent + 1) : "无";
+    state.lineRevealed = true;
+    setFeedback(`${state.lineCurrent} 的前一个是 ${prevStr}，后一个是 ${nextStr}。`, "good");
   });
 }
 
 function renderTenPlus() {
-  const result = 10 + state.onesValue;
+  const r = 10 + state.onesValue;
+  const buttons = Array.from({ length: 9 }, (_, i) => {
+    const n = i + 1;
+    return `<button data-tenp="${n}" class="${state.onesValue === n ? "active" : ""}">${n}</button>`;
+  }).join("");
   return `
     <div class="place-board">
       <div class="place-column">
@@ -1505,16 +1653,23 @@ function renderTenPlus() {
       </div>
     </div>
     <div class="formula-line">
-      <span class="formula-box">10</span><span>+</span><span class="formula-box">${state.onesValue}</span><span>=</span><span class="formula-box">${result}</span>
+      <span class="formula-box">10</span><span>+</span><span class="formula-box">${state.onesValue}</span><span>=</span><span class="formula-box">${r}</span>
+      <span style="padding:0 12px;color:#aaa">|</span>
+      <span class="formula-box">${r}</span><span>−</span><span class="formula-box">${state.onesValue}</span><span>=</span><span class="formula-box">10</span>
+      <span style="padding:0 12px;color:#aaa">|</span>
+      <span class="formula-box">${r}</span><span>−</span><span class="formula-box">10</span><span>=</span><span class="formula-box">${state.onesValue}</span>
     </div>
-    <input type="range" min="1" max="9" value="${state.onesValue}" data-ten-plus />
+    <div class="number-row">${buttons}</div>
   `;
 }
 
 function bindTenPlus() {
-  document.querySelector("[data-ten-plus]").addEventListener("input", (event) => {
-    state.onesValue = Number(event.target.value);
-    setFeedback(`10 加 ${state.onesValue} 等于 ${10 + state.onesValue}。反过来，${10 + state.onesValue} 减 10 等于 ${state.onesValue}。`, "good");
+  document.querySelectorAll("[data-tenp]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.onesValue = Number(btn.dataset.tenp);
+      const r = 10 + state.onesValue;
+      setFeedback(`10 加 ${state.onesValue} 等于 ${r}。反过来：${r} 减 ${state.onesValue} 等于 10，${r} 减 10 等于 ${state.onesValue}。`, "good");
+    });
   });
 }
 
@@ -1523,8 +1678,10 @@ function renderBetween() {
   const high = Math.max(state.betweenStart, state.betweenEnd);
   const people = Array.from({ length: 12 }, (_, index) => {
     const num = index + 1;
-    const mark = num === low || num === high ? "mark" : "";
-    return `<span class="person ${mark}">${num}</span>`;
+    const isLow = num === low, isHigh = num === high;
+    const epAttr = isLow ? 'data-drag-ep="start" style="cursor:grab"'
+      : isHigh ? 'data-drag-ep="end" style="cursor:grab"' : "";
+    return `<span class="person ${isLow || isHigh ? "mark" : ""}" ${epAttr}>${num}</span>`;
   }).join("");
   return `
     <div class="board">
@@ -1537,6 +1694,7 @@ function renderBetween() {
       <button data-between="-1">端点靠近</button>
       <button class="primary" data-between="1">端点拉开</button>
     </div>
+    <p class="builder-hint">也可以直接拖动红色端点改变区间。</p>
   `;
 }
 
@@ -1545,7 +1703,40 @@ function bindBetween() {
     button.addEventListener("click", () => {
       const delta = Number(button.dataset.between);
       state.betweenEnd = clamp(state.betweenEnd + delta, state.betweenStart + 1, 12);
-      setFeedback("两个红色端点不算在“之间”里面，只数中间的人。", "good");
+      const lo = Math.min(state.betweenStart, state.betweenEnd);
+      const hi = Math.max(state.betweenStart, state.betweenEnd);
+      setFeedback(`两个红色端点不算在"之间"里面，之间有 ${hi - lo - 1} 人。`, "good");
+    });
+  });
+
+  // 拖动端点：pointerdown → capture → pointerup → elementFromPoint
+  document.querySelectorAll("[data-drag-ep]").forEach((el) => {
+    let dragging = false;
+    el.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      dragging = true;
+      if (el.setPointerCapture) el.setPointerCapture(event.pointerId);
+    });
+    el.addEventListener("pointermove", () => { /* 保持 capture 活跃，实际不需要处理 */ });
+    el.addEventListener("pointerup", (event) => {
+      if (!dragging) return;
+      dragging = false;
+      const ep = el.dataset.dragEp;
+      const target = document.elementFromPoint(event.clientX, event.clientY);
+      const person = target && target.closest(".person");
+      if (person) {
+        const num = Number(person.textContent);
+        if (!isNaN(num)) {
+          if (ep === "start" && num >= 1 && num < state.betweenEnd) {
+            state.betweenStart = num;
+          } else if (ep === "end" && num > state.betweenStart && num <= 12) {
+            state.betweenEnd = num;
+          }
+        }
+      }
+      const lo = Math.min(state.betweenStart, state.betweenEnd);
+      const hi = Math.max(state.betweenStart, state.betweenEnd);
+      setFeedback(`第 ${lo} 和第 ${hi} 之间有 ${Math.max(0, hi - lo - 1)} 人。`, "good");
     });
   });
 }
@@ -1627,41 +1818,76 @@ function bindCommutative() {
 
 function renderProblem(tool) {
   const totalMode = tool.mode === "total";
-  const sentence = totalMode
-    ? "前排有 7 人，后排有 8 人。一共有多少人？"
-    : "领走了 6 个足球，还剩 5 个。原来有多少个足球？";
-  const formula = totalMode ? "7 + 8 = 15" : "6 + 5 = 11";
-  // T25 B版：用足球 emoji 替换通用方块
+  let sentence, formula, objA, objB, headA, headB;
+
+  if (totalMode) {
+    const p = PROBLEMS_TOTAL[state.problem24Index];
+    headA = p.labelA; headB = p.labelB;
+    objA = p.a; objB = p.b;
+    sentence = `${p.labelA}有 ${p.a} 个${p.unit}，${p.labelB}有 ${p.b} 个${p.unit}。一共有多少个${p.unit}？`;
+    formula = `${p.a} + ${p.b} = ${p.a + p.b}`;
+  } else {
+    const p = PROBLEMS_ORIGINAL[state.problem25Index];
+    headA = "领走"; headB = "还剩";
+    objA = p.took; objB = p.left;
+    sentence = `领走了 ${p.took} 个${p.item}，还剩 ${p.left} 个。原来有多少个${p.item}？`;
+    formula = `${p.took} + ${p.left} = ${p.took + p.left}`;
+  }
+
+  // T25 B版：足球 emoji（original 模式 B版）
   const useFootball = !totalMode && version !== "A";
   const objFn = useFootball
     ? (n) => Array.from({ length: n }, (_, i) =>
         `<span class="count-item" style="font-size:28px;animation-delay:${i * 35}ms">⚽</span>`).join("")
     : objectHtml;
+
   return `
     <div class="problem-panel">
-      <p>${sentence}</p>
+      <p>${escapeHtml(sentence)}</p>
       <div class="split-board">
-        <div class="bin"><h4>${totalMode ? "前排" : "领走"}</h4><div class="objects-grid">${objFn(totalMode ? 7 : 6)}</div></div>
-        <div class="bin"><h4>${totalMode ? "后排" : "还剩"}</h4><div class="objects-grid">${objFn(totalMode ? 8 : 5)}</div></div>
+        <div class="bin"><h4>${escapeHtml(headA)}</h4><div class="objects-grid">${objFn(objA)}</div></div>
+        <div class="bin"><h4>${escapeHtml(headB)}</h4><div class="objects-grid">${objFn(objB)}</div></div>
       </div>
-      <div class="formula-line"><span>${formula}</span></div>
+      <div class="formula-line"><span>${escapeHtml(formula)}</span></div>
     </div>
     <div class="action-row">
       <button class="primary" data-problem="read">阅读理解</button>
       <button data-problem="solve">分析解答</button>
       <button data-problem="check">回顾反思</button>
+      <button data-prob-shuffle>换一题</button>
     </div>
   `;
 }
 
 function bindProblem(tool) {
-  const messages = {
-    read: tool.mode === "total" ? "知道两部分人数，要求一共有多少。" : "知道领走的和剩下的，要求原来有多少。",
-    solve: "把两部分合起来，用加法计算。",
-    check: "结果要回到题目情境里检查，说清单位和意思。"
-  };
+  const totalMode = tool.mode === "total";
   document.querySelectorAll("[data-problem]").forEach((button) => {
-    button.addEventListener("click", () => setFeedback(messages[button.dataset.problem], "good"));
+    button.addEventListener("click", () => {
+      const p = totalMode ? PROBLEMS_TOTAL[state.problem24Index] : PROBLEMS_ORIGINAL[state.problem25Index];
+      let msg;
+      if (button.dataset.problem === "read") {
+        msg = totalMode
+          ? `题目告诉我们两部分：${p.labelA} ${p.a} 个，${p.labelB} ${p.b} 个。要求合在一起是多少。`
+          : `题目告诉我们领走的（${p.took} 个）和还剩的（${p.left} 个），要求原来有多少。`;
+      } else if (button.dataset.problem === "solve") {
+        msg = totalMode
+          ? `两部分合起来用加法：${p.a} + ${p.b} = ${p.a + p.b}（个）`
+          : `领走的加上剩下的就是原来的：${p.took} + ${p.left} = ${p.took + p.left}（个）。验证：${p.took + p.left} − ${p.took} = ${p.left} ✓`;
+      } else {
+        msg = totalMode
+          ? `答：一共有 ${p.a + p.b} 个。回头想：两部分合起来对不对？`
+          : `答：原来有 ${p.took + p.left} 个。验证：${p.took + p.left} 减去领走的 ${p.took} 等于还剩的 ${p.left}，正确！`;
+      }
+      setFeedback(msg, "good");
+    });
+  });
+  document.querySelector("[data-prob-shuffle]")?.addEventListener("click", () => {
+    if (totalMode) {
+      state.problem24Index = (state.problem24Index + 1) % PROBLEMS_TOTAL.length;
+    } else {
+      state.problem25Index = (state.problem25Index + 1) % PROBLEMS_ORIGINAL.length;
+    }
+    setFeedback("换了一道新题，请学生先读题再分析。", "good");
   });
 }
 

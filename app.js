@@ -5,7 +5,7 @@ const tools = [
     title: "1-5 的认识",
     pages: "PDF 3-12 · 教材 14-23",
     objective: "认识 1-5，建立数量和数字的对应，理解比较和第几。",
-    tip: "先让学生观察物体数量，再点数验证；A 版偏课件，B 版偏童趣。",
+    tip: "先让学生观察物体数量，再点数验证。",
     type: "quantity",
     max: 5,
     target: 4
@@ -67,7 +67,7 @@ const tools = [
     title: "6 和 7 的加、减法",
     pages: "PDF 33-38 · 教材 44-49",
     objective: "根据 6、7 的分合看图列加减算式。",
-    tip: "先说左边、右边各有几个，再判断用加法还是减法。",
+    tip: "加法：把方块拖进两个框，说出 □+□=□；减法：框里已放好全部方块（被减数），逐一点击方块打 × 表示减去。",
     type: "builder",
     builder: { modes: ["add", "sub"], boxCount: 2, pool: 7, init: { add: [5, 2], subMinuend: 7 } }
   },
@@ -438,25 +438,12 @@ function render() {
   els.tip.textContent = tool.tip;
   els.stage.className = `tool-stage version-${version.toLowerCase()}`;
 
-  const versionNote = version === "A"
-    ? {
-        title: "A 版：板书演示",
-        text: "画面更克制，突出数量、符号和算式，适合老师一步步讲。"
-      }
-    : {
-        title: "B 版：情境活动",
-        text: "颜色更明快，物件更圆润，适合先吸引学生观察再提问。"
-      };
   const body = renderByType(tool);
   els.stage.innerHTML = `
     <article class="tool-card">
       <div class="tool-head">
         <h3>${tool.id}-${version} ${tool.title}</h3>
         <span class="tool-badge">${version === "A" ? "课件版" : "儿童版"}</span>
-      </div>
-      <div class="version-note">
-        <strong>${versionNote.title}</strong>
-        <span>${versionNote.text}</span>
       </div>
       ${body}
       <div class="feedback ${escapeHtml(state.feedbackType || "")}" id="feedback">${escapeHtml(state.feedback)}</div>
@@ -986,7 +973,7 @@ function renderBuilder(tool) {
     : "";
 
   const hint = mode === "sub"
-    ? "点击方框里的方块打 × 表示减去；再次点击取消。"
+    ? "框里已放好全部方块（被减数）；点击方块打 × 减去，再次点击取消；算式随点击实时更新。"
     : mode === "mix"
     ? "先在两个框里放好方块；点击方框里的方块打 × 表示减去；算式跟着变化。"
     : "把下面的方块拖进左框或右框，算式自动相加。";
@@ -1755,10 +1742,6 @@ function renderMakeTen() {
     <div class="formula-line">
       <span>把 ${state.add} 分成</span><span class="formula-box">${need}</span><span>和</span><span class="formula-box">${rest}</span><span>，先凑 10</span>
     </div>
-    <div class="action-row">
-      <button data-make="add-down">加数 -1</button>
-      <button class="primary" data-make="add-up">加数 +1</button>
-    </div>
   `;
 }
 
@@ -1841,13 +1824,26 @@ function renderProblem(tool) {
         `<span class="count-item" style="font-size:28px;animation-delay:${i * 35}ms">⚽</span>`).join("")
     : objectHtml;
 
+  // T24 B版：卡通人物两排展示（total 模式 B版）
+  const usePerson = totalMode && version !== "A";
+  const mkPersonRow = (label, n) => {
+    const figures = Array.from({ length: n }, (_, i) =>
+      `<span class="count-item" style="font-size:26px;animation-delay:${i * 30}ms">🧒</span>`
+    ).join("");
+    return `<div style="margin:4px 0"><strong>${escapeHtml(label)}（${n} 人）：</strong><br>${figures}</div>`;
+  };
+
+  const visualHtml = usePerson
+    ? `<div style="padding:8px 0">${mkPersonRow(headA, objA)}${mkPersonRow(headB, objB)}</div>`
+    : `<div class="split-board">
+         <div class="bin"><h4>${escapeHtml(headA)}</h4><div class="objects-grid">${objFn(objA)}</div></div>
+         <div class="bin"><h4>${escapeHtml(headB)}</h4><div class="objects-grid">${objFn(objB)}</div></div>
+       </div>`;
+
   return `
     <div class="problem-panel">
       <p>${escapeHtml(sentence)}</p>
-      <div class="split-board">
-        <div class="bin"><h4>${escapeHtml(headA)}</h4><div class="objects-grid">${objFn(objA)}</div></div>
-        <div class="bin"><h4>${escapeHtml(headB)}</h4><div class="objects-grid">${objFn(objB)}</div></div>
-      </div>
+      ${visualHtml}
       <div class="formula-line"><span>${escapeHtml(formula)}</span></div>
     </div>
     <div class="action-row">

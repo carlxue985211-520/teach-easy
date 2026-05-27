@@ -868,10 +868,14 @@ body[data-version="b"] .hero-note {
 .bundle {
   width: 72px;
   height: 150px;
-  border-radius: 8px;
+  border-radius: 6px;
   background:
-    repeating-linear-gradient(90deg, #f2b94d 0 5px, #9a6a22 5px 7px);
+    /* 绑带 */
+    linear-gradient(180deg, transparent 43%, #7a3f08 43% 57%, transparent 57%),
+    /* 小棒竖纹 */
+    repeating-linear-gradient(90deg, #f2b94d 0 4px, #b87828 4px 7px);
   border: 3px solid #9a6a22;
+  box-shadow: inset -3px 0 6px rgba(0,0,0,0.18), 2px 3px 6px rgba(0,0,0,0.12);
 }
 
 .number-line {
@@ -1376,4 +1380,56 @@ input[type="range"] {
   .review-form {
     grid-template-columns: 1fr;
   }
+}
+
+/* ===== M-a: T02 B版减法摘要 ===== */
+.b-sub-summary {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  font-size: 1.05rem;
+  font-weight: 700;
+  padding: 6px 0;
+}
+.b-sub-remain { color: #1a6fcf; }
+.b-sub-taken  { color: #c0392b; }
+
+/* ===== M-e: T17 比较数 tick ===== */
+.tick.compare-tick {
+  color: #e07b00;
+}
+.tick.compare-tick::before {
+  background: #e07b00;
+}
+.line-current-box {
+  background: #d8eaff;
+  border-color: #2a7ce6;
+  color: #1552b0;
+}
+.line-compare-box {
+  background: #fff0d8;
+  border-color: #e07b00;
+  color: #8c4b00;
+}
+
+/* ===== M-i: T26 加法表 ===== */
+.t26-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.t26-table tr + tr {
+  border-top: 1px solid var(--line);
+}
+.t26-sum-cell {
+  padding: 8px 12px;
+  white-space: nowrap;
+  color: #555;
+  font-size: 0.9rem;
+  width: 96px;
+}
+.t26-cells {
+  padding: 6px 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }

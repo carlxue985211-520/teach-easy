@@ -28,7 +28,7 @@ const tools = [
     objective: "理解 0 表示一个也没有，掌握加 0、减 0、减完为 0。",
     tip: "用空盘子和拿走全部帮助学生说出 0 的意思。",
     type: "builder",
-    builder: { modes: ["add", "sub"], boxCount: 2, pool: 5, init: { add: [0, 5], subMinuend: 4 }, examples: ["0+5=5", "5+0=5", "5-0=5", "5-5=0"] }
+    builder: { modes: ["add", "sub"], boxCount: 2, pool: 5, init: { add: [0, 5], subMinuend: 4 }, examples: ["0+5=5", "5+0=5", "5-0=5", "5-5=0"], revealButtonB: true }
   },
   {
     id: "T04",
@@ -385,7 +385,11 @@ function resetState(tool = currentTool()) {
     add: tool.add || 4,
     swap: false,
     t09Mode: "count",       // T09 三模式：count / split / calc
+    t09Verified: false,     // T09 B版：验证前隐藏公式结果
     lineRevealed: false,    // T17 验证前不显示前一个/后一个
+    lineCompare: Math.min(((tool.current || 10) + 5), (tool.max || 20)), // T17 比较数
+    t20Mode: "recognize",   // T20 模式：recognize / calc
+    commRevealed: false,    // T23 A版：验证前隐藏答案
     problem24Index: 0,      // T24 当前题目序号
     problem25Index: 0,      // T25 当前题目序号
     builder: null,
@@ -978,8 +982,9 @@ function renderBuilder(tool) {
     ? "先在两个框里放好方块；点击方框里的方块打 × 表示减去；算式跟着变化。"
     : "把下面的方块拖进左框或右框，算式自动相加。";
 
-  // M3：T02 A版加法模式 — 拖动后先不显示答案，按钮揭示
-  const revealable = cfg.revealButton && version === "A" && mode === "add";
+  // M3：T02 A版加法模式 / T03 B版所有模式 — 拖动后先不显示答案，按钮揭示
+  const revealable = (cfg.revealButton && version === "A" && mode === "add")
+    || (cfg.revealButtonB && version !== "A");
   const formulaHtml = (revealable && !state.builder.revealed)
     ? `<div class="formula-line" style="opacity:0.35;user-select:none">
          <span>${formula.left}</span><span>=</span><span class="formula-box">?</span>
@@ -989,11 +994,22 @@ function renderBuilder(tool) {
          <span>${formula.left}</span><span>=</span><span class="formula-box">${formula.result}</span>
        </div>`;
 
+  // M-a: T02 B版减法模式 — 在公式上方额外显示"剩下/去掉"直观摘要
+  const bSubSummary = (version !== "A" && mode === "sub") ? (() => {
+    const uncrossed = state.builder.tokens.filter((t) => t.loc === "box0" && !t.crossed).length;
+    const crossed = state.builder.tokens.filter((t) => t.loc === "box0" && t.crossed).length;
+    return `<div class="b-sub-summary">
+      <span class="b-sub-remain">🟦 剩下 ${uncrossed} 个</span>
+      <span class="b-sub-taken">❌ 去掉 ${crossed} 个</span>
+    </div>`;
+  })() : "";
+
   return `
     <div class="board builder-board">
       <div class="builder-boxes" style="grid-template-columns: repeat(${boxes}, 1fr)">${boxesHtml}</div>
       ${poolHtml}
     </div>
+    ${bSubSummary}
     ${formulaHtml}
     ${modeToggle}
     ${examples}
@@ -1161,6 +1177,33 @@ function ensureReview(tool) {
 }
 
 function renderReview(tool) {
+  // T26 A版：结构化加法表（按和分组）
+  if (tool.plusOnly && version === "A") {
+    const groups = {};
+    for (let a = 2; a <= 9; a++) {
+      for (let b = a; b <= 9; b++) {
+        const s = a + b;
+        if (s > 10 && s <= 20) {
+          if (!groups[s]) groups[s] = [];
+          groups[s].push([a, b]);
+        }
+      }
+    }
+    const rows = Object.keys(groups).sort((a, b) => Number(a) - Number(b)).map((sum) => {
+      const cells = groups[sum].map(([a, b]) =>
+        `<button class="choice-chip" data-t26="${a}+${b}=${sum}">${a}+${b}</button>`
+      ).join("");
+      return `<tr><td class="t26-sum-cell">和是 <strong>${sum}</strong></td><td class="t26-cells">${cells}</td></tr>`;
+    }).join("");
+    return `
+      <div class="board review-board" style="overflow:auto">
+        <table class="t26-table"><tbody>${rows}</tbody></table>
+      </div>
+      <div class="formula-line review-prompt"><span>点一个算式，说说是哪两个数相加，再说说得数。</span></div>
+      <p class="builder-hint">按"和"分行整理，每行的算式得数相同。</p>
+    `;
+  }
+
   const r = ensureReview(tool);
   let prompt = "点一张卡片说说它的得数；也可以随机抽问或做找得数挑战。";
   if (r.mode === "quiz" && r.quizIndex >= 0) {
@@ -1221,7 +1264,16 @@ function reviewCardTap(r, index) {
 }
 
 function bindReview(tool) {
+  // T26 A版表格点击
+  document.querySelectorAll("[data-t26]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const [expr, sum] = btn.dataset.t26.split("=");
+      setFeedback(`${expr} = ${sum}，这是一道进位加法，可以用凑十法计算。`, "good");
+    });
+  });
+
   const r = state.review;
+  if (!r) return;
   document.querySelectorAll("[data-review]").forEach((button) => {
     button.addEventListener("click", () => {
       const action = button.dataset.review;
@@ -1425,30 +1477,37 @@ function renderTenFrame(tool) {
   }
 
   if (mode === "calc") {
+    const showCalcFormula = version === "A" || state.t09Verified;
+    const fv = (v) => showCalcFormula ? v : "?";
     return `
       <div class="board">
         <div class="ten-frame">${tenCells(a)}</div>
       </div>
       <div class="formula-line">
-        <span class="formula-box">${a}</span><span>+</span><span class="formula-box">${b}</span><span>=</span><span class="formula-box">${total}</span>
+        <span class="formula-box">${fv(a)}</span><span>+</span><span class="formula-box">${fv(b)}</span><span>=</span><span class="formula-box">${fv(total)}</span>
       </div>
       <div class="formula-line">
-        <span class="formula-box">${total}</span><span>−</span><span class="formula-box">${a}</span><span>=</span><span class="formula-box">${b}</span>
+        <span class="formula-box">${fv(total)}</span><span>−</span><span class="formula-box">${fv(a)}</span><span>=</span><span class="formula-box">${fv(b)}</span>
         <span style="padding:0 14px;color:#aaa">|</span>
-        <span class="formula-box">${total}</span><span>−</span><span class="formula-box">${b}</span><span>=</span><span class="formula-box">${a}</span>
+        <span class="formula-box">${fv(total)}</span><span>−</span><span class="formula-box">${fv(b)}</span><span>=</span><span class="formula-box">${fv(a)}</span>
       </div>
+      ${!showCalcFormula ? `<div class="action-row"><button data-t9verify class="primary">验证答案</button></div>` : ""}
       <input type="range" min="0" max="${total}" value="${a}" data-ten-frame />
       ${modeBtns}`;
   }
 
   // count 模式（默认）
+  const showCountFormula = version === "A" || state.t09Verified;
   return `
     <div class="board">
       <div class="ten-frame">${tenCells(a)}</div>
     </div>
     <div class="formula-line">
-      <span class="formula-box">${a}</span><span>+</span><span class="formula-box">${b}</span><span>=</span><span class="formula-box">${total}</span>
+      <span class="formula-box">${showCountFormula ? a : "?"}</span><span>+</span>
+      <span class="formula-box">${showCountFormula ? b : "?"}</span><span>=</span>
+      <span class="formula-box">${showCountFormula ? total : "?"}</span>
     </div>
+    ${!showCountFormula ? `<div class="action-row"><button data-t9verify class="primary">验证答案</button></div>` : ""}
     <input type="range" min="0" max="${total}" value="${a}" data-ten-frame />
     ${modeBtns}`;
 }
@@ -1459,14 +1518,21 @@ function bindTenFrame(tool) {
   if (rangeEl) {
     rangeEl.addEventListener("input", (event) => {
       state.filled = Number(event.target.value);
-      setFeedback(`还差 ${total - state.filled} 个就凑成 ${total}。`, "good");
+      state.t09Verified = false;
+      setFeedback(`想一想：填了几格，空了几格，合起来是多少？`, "good");
     });
   }
   document.querySelectorAll("[data-fill]").forEach((btn) => {
     btn.addEventListener("click", () => {
       state.filled = Number(btn.dataset.fill);
-      setFeedback(`${state.filled} 和 ${total - state.filled} 合成 ${total}。`, "good");
+      state.t09Verified = false;
+      setFeedback(`想一想：${state.filled} 和 ${total - state.filled} 合成 ${total}。`, "good");
     });
+  });
+  document.querySelector("[data-t9verify]")?.addEventListener("click", () => {
+    state.t09Verified = true;
+    const a2 = state.filled, b2 = total - state.filled;
+    setFeedback(`对！${a2} + ${b2} = ${total}，${total} − ${a2} = ${b2}，${total} − ${b2} = ${a2}。`, "good");
   });
   document.querySelectorAll("[data-t9mode]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -1550,13 +1616,62 @@ function bindBundle10() {
   });
 }
 
-function renderPlaceValue() {
+function renderPlaceValue(tool) {
   const tens = Math.floor(state.number / 10);
   const ones = state.number % 10;
   const buttons = Array.from({ length: 10 }, (_, i) => {
     const n = 11 + i;
     return `<button data-place="${n}" class="${state.number === n ? "active" : ""}">${n}</button>`;
   }).join("");
+
+  // T20 专属：认识 / 加减法 模式切换
+  if (tool && tool.id === "T20") {
+    const mode = state.t20Mode || "recognize";
+    const modeToggle = `<div class="action-row">
+      <button class="${mode === "recognize" ? "primary" : ""}" data-t20mode="recognize">认识数</button>
+      <button class="${mode === "calc" ? "primary" : ""}" data-t20mode="calc">加减法</button>
+    </div>`;
+    if (mode === "calc") {
+      const r = 10 + ones;
+      return `
+        <div class="place-board">
+          <div class="place-column"><h4>10</h4>
+            <div class="objects-grid"><span class="bundle"></span></div>
+          </div>
+          <div class="place-column"><h4>${ones}</h4>
+            <div class="objects-grid">${objectHtml(ones)}</div>
+          </div>
+        </div>
+        <div class="formula-line">
+          <span class="formula-box">10</span><span>+</span><span class="formula-box">${ones}</span><span>=</span><span class="formula-box">${r}</span>
+          <span style="padding:0 12px;color:#aaa">|</span>
+          <span class="formula-box">${r}</span><span>−</span><span class="formula-box">${ones}</span><span>=</span><span class="formula-box">10</span>
+          <span style="padding:0 12px;color:#aaa">|</span>
+          <span class="formula-box">${r}</span><span>−</span><span class="formula-box">10</span><span>=</span><span class="formula-box">${ones}</span>
+        </div>
+        <div class="number-row">${buttons}</div>
+        ${modeToggle}
+      `;
+    }
+    return `
+      <div class="place-board">
+        <div class="place-column">
+          <h4>十位：${tens}</h4>
+          <div class="objects-grid">${Array.from({ length: tens }, () => `<span class="bundle"></span>`).join("")}</div>
+        </div>
+        <div class="place-column">
+          <h4>个位：${ones}</h4>
+          <div class="objects-grid">${objectHtml(ones)}</div>
+        </div>
+      </div>
+      <div class="formula-line">
+        <span class="formula-box">${state.number}</span><span>=</span><span>${tens} 个十和 ${ones} 个一</span>
+      </div>
+      <div class="number-row">${buttons}</div>
+      ${modeToggle}
+    `;
+  }
+
   return `
     <div class="place-board">
       <div class="place-column">
@@ -1575,36 +1690,74 @@ function renderPlaceValue() {
   `;
 }
 
-function bindPlaceValue() {
+function bindPlaceValue(tool) {
   document.querySelectorAll("[data-place]").forEach((btn) => {
     btn.addEventListener("click", () => {
       state.number = Number(btn.dataset.place);
       const tens = Math.floor(state.number / 10);
       const ones = state.number % 10;
-      setFeedback(`${state.number} 里面有 ${tens} 个十和 ${ones} 个一。`, "good");
+      if (tool && tool.id === "T20" && state.t20Mode === "calc") {
+        const r = 10 + ones;
+        setFeedback(`10 + ${ones} = ${r}；${r} − ${ones} = 10；${r} − 10 = ${ones}。`, "good");
+      } else {
+        setFeedback(`${state.number} 里面有 ${tens} 个十和 ${ones} 个一。`, "good");
+      }
+    });
+  });
+  document.querySelectorAll("[data-t20mode]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.t20Mode = btn.dataset.t20mode;
+      setFeedback(state.t20Mode === "calc" ? "切换到加减法：看 10+几 和相应的减法。" : "切换到认识数：看十位个位组成。", "good");
     });
   });
 }
 
 function renderNumberLine(tool) {
+  const cmp = state.lineCompare;
   const ticks = [];
   for (let num = tool.min; num <= tool.max; num += 1) {
     const left = 4 + ((num - tool.min) / (tool.max - tool.min)) * 92;
-    ticks.push(`<span class="tick ${num === state.lineCurrent ? "active" : ""}" style="left:${left}%">${num}</span>`);
+    const isCurrent = num === state.lineCurrent;
+    const isCompare = cmp !== null && num === cmp;
+    const cls = isCurrent ? "tick active" : isCompare ? "tick compare-tick" : "tick";
+    ticks.push(`<span class="${cls}" style="left:${left}%">${num}</span>`);
   }
   const prevStr = state.lineCurrent > tool.min ? String(state.lineCurrent - 1) : "无";
   const nextStr = state.lineCurrent < tool.max ? String(state.lineCurrent + 1) : "无";
   const revealed = state.lineRevealed;
+
+  const cmpLine = cmp !== null
+    ? (() => {
+        const bigger = state.lineCurrent > cmp ? state.lineCurrent : cmp;
+        const smaller = state.lineCurrent < cmp ? state.lineCurrent : cmp;
+        const sign = state.lineCurrent > cmp ? ">" : state.lineCurrent < cmp ? "<" : "=";
+        return `<div class="formula-line">
+          <span class="formula-box line-current-box">${state.lineCurrent}</span>
+          <span style="font-size:1.3rem;font-weight:900">${sign}</span>
+          <span class="formula-box line-compare-box">${cmp}</span>
+          <span style="margin-left:12px;color:#888">${bigger > smaller ? `大 ${bigger - smaller}` : "相等"}</span>
+        </div>`;
+      })()
+    : "";
+
   return `
     <div class="board">
       <div class="number-line">${ticks.join("")}</div>
     </div>
     <div class="formula-line">
-      <span>当前数</span><span class="formula-box">${state.lineCurrent}</span>
+      <span>当前数</span><span class="formula-box line-current-box">${state.lineCurrent}</span>
       <span>前一个是 ${revealed ? prevStr : "?"}，后一个是 ${revealed ? nextStr : "?"}</span>
     </div>
     ${!revealed ? `<div class="action-row"><button data-linrev class="primary">验证答案</button></div>` : ""}
     <input type="range" min="${tool.min}" max="${tool.max}" value="${state.lineCurrent}" data-line />
+    <div class="action-row" style="margin-top:8px">
+      <label style="display:flex;align-items:center;gap:8px;font-size:0.9rem">
+        <span class="formula-box line-compare-box" style="min-width:2rem">${cmp !== null ? cmp : "—"}</span>
+        <span>比较数</span>
+        <input type="range" min="${tool.min}" max="${tool.max}" value="${cmp !== null ? cmp : Math.min(state.lineCurrent + 5, tool.max)}" data-line-cmp style="width:160px" />
+      </label>
+    </div>
+    ${cmpLine}
   `;
 }
 
@@ -1612,7 +1765,19 @@ function bindNumberLine(tool) {
   document.querySelector("[data-line]").addEventListener("input", (event) => {
     state.lineCurrent = Number(event.target.value);
     state.lineRevealed = false;
-    setFeedback("想一想，这个数的前一个和后一个是什么？", "good");
+    const cmp = state.lineCompare;
+    if (cmp !== null) {
+      const sign = state.lineCurrent > cmp ? "大于" : state.lineCurrent < cmp ? "小于" : "等于";
+      setFeedback(`${state.lineCurrent} ${sign} ${cmp}，可以在数轴上看出来。`, "good");
+    } else {
+      setFeedback("想一想，这个数的前一个和后一个是什么？", "good");
+    }
+  });
+  document.querySelector("[data-line-cmp]")?.addEventListener("input", (event) => {
+    state.lineCompare = Number(event.target.value);
+    state.lineRevealed = false;
+    const sign = state.lineCurrent > state.lineCompare ? "大于" : state.lineCurrent < state.lineCompare ? "小于" : "等于";
+    setFeedback(`${state.lineCurrent} ${sign} ${state.lineCompare}，比较两个数在数轴上的位置。`, "good");
   });
   document.querySelector("[data-linrev]")?.addEventListener("click", () => {
     const prevStr = state.lineCurrent > tool.min ? String(state.lineCurrent - 1) : "无";
@@ -1668,7 +1833,10 @@ function renderBetween() {
     const isLow = num === low, isHigh = num === high;
     const epAttr = isLow ? 'data-drag-ep="start" style="cursor:grab"'
       : isHigh ? 'data-drag-ep="end" style="cursor:grab"' : "";
-    return `<span class="person ${isLow || isHigh ? "mark" : ""}" ${epAttr}>${num}</span>`;
+    const display = version !== "A"
+      ? (isLow || isHigh ? "🔴" : "🧒")
+      : num;
+    return `<span class="person ${isLow || isHigh ? "mark" : ""}" ${epAttr} data-num="${num}">${display}</span>`;
   }).join("");
   return `
     <div class="board">
@@ -1712,7 +1880,7 @@ function bindBetween() {
       const target = document.elementFromPoint(event.clientX, event.clientY);
       const person = target && target.closest(".person");
       if (person) {
-        const num = Number(person.textContent);
+        const num = Number(person.dataset.num || person.textContent);
         if (!isNaN(num)) {
           if (ep === "start" && num >= 1 && num < state.betweenEnd) {
             state.betweenStart = num;
@@ -1759,6 +1927,7 @@ function bindMakeTen() {
 function renderCommutative() {
   const left = state.swap ? state.right : state.left;
   const right = state.swap ? state.left : state.right;
+  const showResult = version !== "A" || state.commRevealed;
   return `
     <div class="split-board">
       <div class="bin">
@@ -1771,10 +1940,12 @@ function renderCommutative() {
       </div>
     </div>
     <div class="formula-line">
-      <span class="formula-box">${left}</span><span>+</span><span class="formula-box">${right}</span><span>=</span><span class="formula-box">${left + right}</span>
+      <span class="formula-box">${left}</span><span>+</span><span class="formula-box">${right}</span><span>=</span>
+      <span class="formula-box">${showResult ? left + right : "?"}</span>
     </div>
     <div class="action-row">
       <button class="primary" data-swap>交换左右</button>
+      ${!showResult ? `<button data-comm-verify class="primary">验证答案</button>` : ""}
       <button data-shuffle-comm>换一题</button>
     </div>
   `;
@@ -1785,6 +1956,12 @@ function bindCommutative() {
     state.swap = !state.swap;
     setFeedback("两个加数交换位置，合起来的总数不变。", "good");
   });
+  document.querySelector("[data-comm-verify]")?.addEventListener("click", () => {
+    const left = state.swap ? state.right : state.left;
+    const right = state.swap ? state.left : state.right;
+    state.commRevealed = true;
+    setFeedback(`${left} + ${right} = ${left + right}，交换后 ${right} + ${left} = ${left + right}，答案不变！`, "good");
+  });
   const shuffleBtn = document.querySelector("[data-shuffle-comm]");
   if (shuffleBtn) {
     shuffleBtn.addEventListener("click", () => {
@@ -1794,7 +1971,8 @@ function bindCommutative() {
       state.left = a;
       state.right = b;
       state.swap = false;
-      setFeedback(`新算式：${a} + ${b} = ${a + b}，交换后 ${b} + ${a} 结果不变。`, "good");
+      state.commRevealed = false;
+      setFeedback(`新算式：${a} + ${b} = ？先想一想，再验证。`, "good");
     });
   }
 }

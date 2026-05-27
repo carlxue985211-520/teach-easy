@@ -1602,3 +1602,181 @@ input[type="range"] {
   color: #555;
   white-space: nowrap;
 }
+
+/* ===== H7: T12 B版加法/减法表 ===== */
+.t12-table {
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.t12-op {
+  background: #e0e8ff;
+  font-size: 1rem;
+}
+.t12-hdr {
+  padding: 5px 8px;
+  background: #eef2ff;
+  color: #1a2a4a;
+  font-weight: 900;
+  text-align: center;
+  border: 1px solid #c8d4f0;
+}
+.t12-cell {
+  padding: 0;
+  width: 34px;
+  height: 34px;
+  text-align: center;
+  border: 1px solid #d8e0f0;
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+  font-size: 0.85rem;
+}
+.t12-cell:hover {
+  background: #d8e8ff;
+}
+.t12-cell.t12-active {
+  background: var(--blue);
+  color: #fff;
+  font-weight: 900;
+}
+.t12-empty {
+  width: 34px;
+  height: 34px;
+  background: #f4f4f6;
+  border: 1px solid #e4e8f0;
+}
+.version-b .t12-cell:hover  { background: #fff0cc; }
+.version-b .t12-cell.t12-active { background: #ef7a56; color: #fff; border-color: #d65d39; }
+.version-b .t12-hdr { background: #fff3d4; border-color: #f0c868; }
+
+/* ===== H4: T17 具象比较（两排小方块） ===== */
+.cmp-board {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.cmp-row-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cmp-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  max-width: 320px;
+}
+.cmp-block {
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
+  flex-shrink: 0;
+}
+.cmp-block.cmp-left  { background: var(--blue); }
+.cmp-block.cmp-right { background: var(--red); }
+.cmp-block.cmp-extra {
+  opacity: 0.55;
+  box-shadow: 0 0 0 2px currentColor;
+}
+.cmp-block.cmp-left.cmp-extra  { background: #a0c0f8; }
+.cmp-block.cmp-right.cmp-extra { background: #f8b0b0; }
+.cmp-count {
+  font-size: 1.4rem;
+  font-weight: 900;
+  min-width: 32px;
+}
+.cmp-left-label  { color: var(--blue); }
+.cmp-right-label { color: var(--red); }
+
+/* ===== H1: T13 立体图形改版 ===== */
+.solid-display {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 16px;
+  background: #f6f8fc;
+  border-radius: 10px;
+  border: 1px solid #dce4f0;
+  margin-bottom: 14px;
+}
+.solid-display-shape {
+  flex-shrink: 0;
+  width: 150px;
+  display: grid;
+  place-items: center;
+}
+.solid-display-shape svg { width: 100%; height: auto; }
+.solid-display-info { flex: 1; }
+.solid-display-name {
+  font-size: 1.5rem;
+  font-weight: 900;
+  margin: 0 0 6px;
+  color: #1a2a3a;
+}
+.solid-display-desc {
+  font-size: 0.95rem;
+  color: #444;
+  line-height: 1.5;
+  margin: 0 0 8px;
+}
+.solid-roll-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+.solid-roll-badge.can  { background: #d4f7d4; color: #1a6030; }
+.solid-roll-badge.no   { background: #fde8e8; color: #802020; }
+.solid-selector {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.solid-mini {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  border: 2px solid #c8d4e4;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 700;
+  transition: border-color 120ms, background 120ms;
+  min-width: 72px;
+}
+.solid-mini:hover { border-color: var(--blue); background: #eef4ff; }
+.solid-mini.active { border-color: var(--blue); background: #ddeeff; }
+.solid-mini-svg { width: 64px; height: auto; }
+.solid-mini-svg svg { width: 100%; height: auto; }
+.version-b .solid-mini { border-color: #f0c868; background: #fff8df; }
+.version-b .solid-mini.active { border-color: #e07020; background: #ffe8c0; }
+/* Roll animations */
+@keyframes roll-ball {
+  0%   { transform: translateX(0)    rotate(0deg); }
+  40%  { transform: translateX(55px) rotate(360deg); }
+  100% { transform: translateX(0)    rotate(720deg); }
+}
+@keyframes roll-cylinder {
+  0%   { transform: rotate(0deg)   translateX(0); }
+  18%  { transform: rotate(88deg)  translateX(8px); }
+  50%  { transform: rotate(88deg)  translateX(55px); }
+  82%  { transform: rotate(88deg)  translateX(8px); }
+  100% { transform: rotate(0deg)   translateX(0); }
+}
+@keyframes roll-tumble {
+  0%   { transform: translateX(0)    rotate(0deg); }
+  20%  { transform: translateX(18px) rotate(90deg); }
+  40%  { transform: translateX(36px) rotate(180deg) translateY(4px); }
+  60%  { transform: translateX(22px) rotate(270deg); }
+  80%  { transform: translateX(8px)  rotate(320deg); }
+  100% { transform: translateX(0)    rotate(360deg); }
+}
+.roll-ball     { animation: roll-ball     1.1s ease-in-out; }
+.roll-cylinder { animation: roll-cylinder 1.2s ease-in-out; }
+.roll-tumble   { animation: roll-tumble   1.3s ease-in-out; }

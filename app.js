@@ -395,6 +395,9 @@ function resetState(tool = currentTool()) {
     commRevealed: false,    // T23 A版：验证前隐藏答案
     problem24Index: 0,      // T24 当前题目序号
     problem25Index: 0,      // T25 当前题目序号
+    solidSelected: 0,       // T13 当前选中的立体图形（0-3）
+    t12TableMode: "add",    // T12 B版表格模式：add / sub
+    t12ActiveCell: null,    // T12 B版已选格子
     builder: null,
     review: null,
     feedback: "选择一个动作，开始课堂演示。"
@@ -1179,7 +1182,62 @@ function ensureReview(tool) {
   return state.review;
 }
 
+function renderT12Table(tool) {
+  const max = tool.max || 10;
+  const mode = state.t12TableMode || "add";
+  const active = state.t12ActiveCell;
+  const nums = Array.from({ length: max + 1 }, (_, i) => i);
+
+  const headerCells = nums.map((n) => `<th class="t12-hdr">${n}</th>`).join("");
+
+  let rows;
+  if (mode === "add") {
+    rows = nums.map((row) => {
+      const cells = nums.map((col) => {
+        const sum = row + col;
+        if (sum > max) return `<td class="t12-empty"></td>`;
+        const key = `${row}+${col}`;
+        return `<td class="t12-cell${active === key ? " t12-active" : ""}" data-t12="${key}=${sum}">${sum}</td>`;
+      }).join("");
+      return `<tr><th class="t12-hdr">${row}</th>${cells}</tr>`;
+    }).join("");
+  } else {
+    rows = nums.slice(1).map((row) => {
+      const cells = nums.map((col) => {
+        if (col > row) return `<td class="t12-empty"></td>`;
+        const diff = row - col;
+        const key = `${row}-${col}`;
+        return `<td class="t12-cell${active === key ? " t12-active" : ""}" data-t12="${key}=${diff}">${diff}</td>`;
+      }).join("");
+      return `<tr><th class="t12-hdr">${row}</th>${cells}</tr>`;
+    }).join("");
+  }
+
+  return `
+    <div class="action-row" style="margin-bottom:12px">
+      <button class="${mode === "add" ? "primary" : ""}" data-t12mode="add">➕ 加法表</button>
+      <button class="${mode === "sub" ? "primary" : ""}" data-t12mode="sub">➖ 减法表</button>
+    </div>
+    <div class="board" style="overflow:auto;padding:12px">
+      <table class="t12-table">
+        <thead>
+          <tr><th class="t12-hdr t12-op">${mode === "add" ? "+" : "−"}</th>${headerCells}</tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div class="formula-line review-prompt" style="font-size:1rem;font-weight:700">
+      <span>点一个格子，说说它的算式和得数。</span>
+    </div>
+  `;
+}
+
 function renderReview(tool) {
+  // T12 B版：加法表 / 减法表网格
+  if (tool.id === "T12" && version !== "A") {
+    return renderT12Table(tool);
+  }
+
   // T26 A版：结构化加法表（按和分组）
   if (tool.plusOnly && version === "A") {
     const groups = {};
@@ -1267,6 +1325,27 @@ function reviewCardTap(r, index) {
 }
 
 function bindReview(tool) {
+  // T12 B版：加法表/减法表交互
+  if (tool.id === "T12" && version !== "A") {
+    document.querySelectorAll("[data-t12mode]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.t12TableMode = btn.dataset.t12mode;
+        state.t12ActiveCell = null;
+        setFeedback(state.t12TableMode === "add"
+          ? "加法表：行和列的数相加，得到格子里的数。"
+          : "减法表：行是被减数，列是减数，格子里的数是差。", "good");
+      });
+    });
+    document.querySelectorAll("[data-t12]").forEach((cell) => {
+      cell.addEventListener("click", () => {
+        const [lhs, rhs] = cell.dataset.t12.split("=");
+        state.t12ActiveCell = lhs;
+        setFeedback(`${lhs} = ${rhs}，请学生说说是怎么算出来的。`, "good");
+      });
+    });
+    return;
+  }
+
   // T26 A版表格点击
   document.querySelectorAll("[data-t26]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -1550,28 +1629,91 @@ function bindTenFrame(tool) {
   });
 }
 
+const SOLID_DEFS = [
+  {
+    name: "长方体",
+    desc: "有 6 个平平的面，12 条棱，8 个角（顶点）。",
+    rollText: "长方体放倒会上下颠簸，不能平滑滚动！",
+    rollClass: "roll-tumble",
+    canRoll: false,
+    svgPath: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150 115"><polygon points="10,40 105,40 105,95 10,95" fill="#4caf7a" stroke="#2d7a50" stroke-width="2"/><polygon points="10,40 48,12 143,12 105,40" fill="#a0dbb5" stroke="#2d7a50" stroke-width="2"/><polygon points="105,40 143,12 143,67 105,95" fill="#1e7045" stroke="#2d7a50" stroke-width="2"/></svg>`
+  },
+  {
+    name: "正方体",
+    desc: "6 个面大小相同，12 条棱一样长，8 个顶点。",
+    rollText: "正方体六个面一样大，放倒也会颠簸，不能平滑滚！",
+    rollClass: "roll-tumble",
+    canRoll: false,
+    svgPath: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 125 115"><polygon points="15,42 80,42 80,105 15,105" fill="#5a89e6" stroke="#2a5ab8" stroke-width="2"/><polygon points="15,42 52,12 117,12 80,42" fill="#9abcf0" stroke="#2a5ab8" stroke-width="2"/><polygon points="80,42 117,12 117,75 80,105" fill="#1a4595" stroke="#2a5ab8" stroke-width="2"/></svg>`
+  },
+  {
+    name: "圆柱",
+    desc: "两个圆形平面（底面），一个弯曲侧面，躺倒可以滚动。",
+    rollText: "圆柱躺倒后能滚，但只能向一个方向滚！",
+    rollClass: "roll-cylinder",
+    canRoll: true,
+    svgPath: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect x="24" y="38" width="72" height="64" fill="#e09040"/><ellipse cx="60" cy="102" rx="36" ry="13" fill="#a05820"/><ellipse cx="60" cy="38" rx="36" ry="13" fill="#ffd898"/><line x1="24" y1="38" x2="24" y2="102" stroke="#c07030" stroke-width="1.5"/><line x1="96" y1="38" x2="96" y2="102" stroke="#a05820" stroke-width="1.5"/></svg>`
+  },
+  {
+    name: "球",
+    desc: "圆圆的，没有平面，也没有棱角，能向各个方向滚动。",
+    rollText: "球能向任意方向滚动，最好滚！",
+    rollClass: "roll-ball",
+    canRoll: true,
+    svgPath: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><circle cx="60" cy="60" r="53" fill="#c43040"/><circle cx="42" cy="38" r="18" fill="rgba(255,255,255,0.38)"/><ellipse cx="60" cy="60" rx="51" ry="51" fill="none" stroke="#8a1a28" stroke-width="1.5"/><ellipse cx="60" cy="60" rx="51" ry="20" fill="none" stroke="#8a1a28" stroke-width="1" opacity="0.5"/></svg>`
+  }
+];
+
 function renderSolids() {
-  const cards = [
-    ["长方体", "box", "有平平的面，像盒子。"],
-    ["正方体", "cube", "每个面大小一样，像小方块。"],
-    ["圆柱", "cylinder", "可以滚，也可以立起来。"],
-    ["球", "ball", "能向四面八方滚动。"]
-  ];
+  const sel = state.solidSelected ?? 0;
+  const s = SOLID_DEFS[sel];
+
+  const selectorCards = SOLID_DEFS.map((def, i) => `
+    <button class="solid-mini${i === sel ? " active" : ""}" data-solid-idx="${i}">
+      <div class="solid-mini-svg">${def.svgPath}</div>
+      <span>${def.name}</span>
+    </button>
+  `).join("");
+
   return `
-    <div class="solid-grid">
-      ${cards.map(([name, cls, text]) => `
-        <button class="solid-card" data-solid="${text}">
-          <span class="solid-shape ${cls}">${name[0]}</span>
-          <strong>${name}</strong>
-        </button>
-      `).join("")}
+    <div class="solid-display">
+      <div class="solid-display-shape">${s.svgPath}</div>
+      <div class="solid-display-info">
+        <h3 class="solid-display-name">${s.name}</h3>
+        <p class="solid-display-desc">${s.desc}</p>
+        <p class="solid-roll-badge ${s.canRoll ? "can" : "no"}">
+          ${s.canRoll ? "✅ 能滚动" : "❌ 不能平滑滚动"}
+        </p>
+      </div>
     </div>
+    <div class="action-row">
+      <button data-solid-roll class="primary">滚一滚</button>
+    </div>
+    <div class="solid-selector">${selectorCards}</div>
   `;
 }
 
 function bindSolids() {
-  document.querySelectorAll("[data-solid]").forEach((button) => {
-    button.addEventListener("click", () => setFeedback(button.dataset.solid, "good"));
+  document.querySelectorAll("[data-solid-idx]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.solidSelected = parseInt(btn.dataset.solidIdx);
+      const s = SOLID_DEFS[state.solidSelected];
+      setFeedback(s.desc, "good");
+    });
+  });
+
+  document.querySelector("[data-solid-roll]")?.addEventListener("click", () => {
+    const shape = document.querySelector(".solid-display-shape");
+    if (!shape) return;
+    const s = SOLID_DEFS[state.solidSelected ?? 0];
+    ["roll-ball", "roll-cylinder", "roll-tumble"].forEach((c) => shape.classList.remove(c));
+    void shape.offsetWidth; // force reflow to restart animation
+    shape.classList.add(s.rollClass);
+    state.feedback = s.rollText;
+    state.feedbackType = "good";
+    const fb = document.getElementById("feedback");
+    if (fb) { fb.textContent = s.rollText; fb.className = "feedback good"; }
+    shape.addEventListener("animationend", () => shape.classList.remove(s.rollClass), { once: true });
   });
 }
 
@@ -1839,50 +1981,71 @@ function bindPlaceValue(tool) {
 
 function renderNumberLine(tool) {
   const cmp = state.lineCompare;
+  const left = state.lineCurrent;
+  const right = cmp;
+  const sign = left > right ? ">" : left < right ? "<" : "=";
+  const paired = Math.min(left, right);
+
+  // 具象对比：两排小方块，一一对应
+  const makeBlocks = (count, cls) =>
+    Array.from({ length: count }, (_, i) =>
+      `<span class="cmp-block ${cls}${i >= paired ? " cmp-extra" : ""}"></span>`
+    ).join("");
+
+  const concreteSection = `
+    <div class="cmp-board">
+      <div class="cmp-row-wrap">
+        <div class="cmp-row">${makeBlocks(left, "cmp-left")}</div>
+        <span class="cmp-count cmp-left-label">${left}</span>
+      </div>
+      <div class="cmp-row-wrap">
+        <div class="cmp-row">${makeBlocks(right, "cmp-right")}</div>
+        <span class="cmp-count cmp-right-label">${right}</span>
+      </div>
+    </div>
+    <div class="formula-line" style="margin-bottom:12px">
+      <span class="formula-box line-current-box">${left}</span>
+      <span style="font-size:1.5rem;font-weight:900;padding:0 4px">${sign}</span>
+      <span class="formula-box line-compare-box">${right}</span>
+      ${left !== right ? `<span style="color:#888;font-size:1rem">（差 ${Math.abs(left - right)}）</span>` : `<span style="color:#888;font-size:1rem">（相等）</span>`}
+    </div>
+  `;
+
+  // 数轴
   const ticks = [];
   for (let num = tool.min; num <= tool.max; num += 1) {
-    const left = 4 + ((num - tool.min) / (tool.max - tool.min)) * 92;
-    const isCurrent = num === state.lineCurrent;
-    const isCompare = cmp !== null && num === cmp;
+    const pos = 4 + ((num - tool.min) / (tool.max - tool.min)) * 92;
+    const isCurrent = num === left;
+    const isCompare = num === right;
     const cls = isCurrent ? "tick active" : isCompare ? "tick compare-tick" : "tick";
-    ticks.push(`<span class="${cls}" style="left:${left}%">${num}</span>`);
+    ticks.push(`<span class="${cls}" style="left:${pos}%">${num}</span>`);
   }
-  const prevStr = state.lineCurrent > tool.min ? String(state.lineCurrent - 1) : "无";
-  const nextStr = state.lineCurrent < tool.max ? String(state.lineCurrent + 1) : "无";
+
+  const prevStr = left > tool.min ? String(left - 1) : "无";
+  const nextStr = left < tool.max ? String(left + 1) : "无";
   const revealed = state.lineRevealed;
 
-  const cmpLine = cmp !== null
-    ? (() => {
-        const bigger = state.lineCurrent > cmp ? state.lineCurrent : cmp;
-        const smaller = state.lineCurrent < cmp ? state.lineCurrent : cmp;
-        const sign = state.lineCurrent > cmp ? ">" : state.lineCurrent < cmp ? "<" : "=";
-        return `<div class="formula-line">
-          <span class="formula-box line-current-box">${state.lineCurrent}</span>
-          <span style="font-size:1.3rem;font-weight:900">${sign}</span>
-          <span class="formula-box line-compare-box">${cmp}</span>
-          <span style="margin-left:12px;color:#888">${bigger > smaller ? `大 ${bigger - smaller}` : "相等"}</span>
-        </div>`;
-      })()
-    : "";
-
   return `
-    <div class="board">
+    ${concreteSection}
+    <div class="board" style="margin-top:8px">
       <div class="number-line">${ticks.join("")}</div>
     </div>
-    <div class="formula-line">
-      <span>当前数</span><span class="formula-box line-current-box">${state.lineCurrent}</span>
+    <div class="formula-line" style="font-size:1.1rem;margin-top:6px">
+      <span>当前数</span><span class="formula-box line-current-box">${left}</span>
       <span>前一个是 ${revealed ? prevStr : "?"}，后一个是 ${revealed ? nextStr : "?"}</span>
     </div>
     ${!revealed ? `<div class="action-row"><button data-linrev class="primary">验证答案</button></div>` : ""}
-    <input type="range" min="${tool.min}" max="${tool.max}" value="${state.lineCurrent}" data-line />
-    <div class="action-row" style="margin-top:8px">
+    <div class="action-row" style="flex-direction:column;gap:6px;margin-top:8px">
       <label style="display:flex;align-items:center;gap:8px;font-size:0.9rem">
-        <span class="formula-box line-compare-box" style="min-width:2rem">${cmp !== null ? cmp : "—"}</span>
+        <span class="formula-box line-current-box" style="min-width:2rem;font-size:1rem">${left}</span>
+        <input type="range" min="${tool.min}" max="${tool.max}" value="${left}" data-line style="width:200px"/>
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:0.9rem">
+        <span class="formula-box line-compare-box" style="min-width:2rem;font-size:1rem">${right}</span>
         <span>比较数</span>
-        <input type="range" min="${tool.min}" max="${tool.max}" value="${cmp !== null ? cmp : Math.min(state.lineCurrent + 5, tool.max)}" data-line-cmp style="width:160px" />
+        <input type="range" min="${tool.min}" max="${tool.max}" value="${right}" data-line-cmp style="width:160px" />
       </label>
     </div>
-    ${cmpLine}
   `;
 }
 

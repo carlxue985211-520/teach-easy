@@ -1499,3 +1499,106 @@ input[type="range"] {
   color: #555;
   margin-top: 6px;
 }
+
+/* ===== H5/H6: T21/T22 凑十法两行可视化 ===== */
+.mt-board {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.mt-row-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.mt-row-label {
+  font-size: 1.5rem;
+  font-weight: 900;
+  min-width: 38px;
+  text-align: right;
+  flex-shrink: 0;
+}
+.mt-label-red   { color: var(--red); }
+.mt-label-green { color: var(--green); }
+.mt-row {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.mt-cell {
+  width: 46px;
+  height: 46px;
+  border: 2px solid #c8d1df;
+  border-radius: 8px;
+  background: #f8f9fb;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.mt-cell.red::before {
+  content: "";
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #ffb3ae, var(--red));
+}
+.mt-cell.green {
+  cursor: pointer;
+  background: #f0fff4;
+  border-color: #7ec8a0;
+  transition: transform 120ms, border-color 120ms;
+}
+.mt-cell.green::before {
+  content: "";
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #b8f5cc, var(--green));
+}
+.mt-cell.green:hover { transform: scale(1.12); border-color: var(--green); }
+.mt-cell.green.moved {
+  background: #eef4ff;
+  border-color: var(--blue);
+}
+.mt-cell.green.moved::before {
+  background: radial-gradient(circle at 35% 35%, #c8daff, var(--blue));
+}
+.mt-cell.empty {
+  background: #fff;
+  border-style: dashed;
+  border-color: #d0d8e4;
+}
+.mt-hint {
+  font-size: 1rem;
+  color: #666;
+  font-weight: 600;
+  margin: 4px 0 8px;
+}
+.mt-decomp-line {
+  font-size: 1.4rem;
+  color: #555;
+  margin-top: 6px;
+}
+.mt-decomp-line .formula-box {
+  min-width: 50px;
+  min-height: 44px;
+  padding: 0 8px;
+}
+.mt-result-box {
+  background: #d4f7d4 !important;
+  border-color: var(--green) !important;
+  color: #1a6030 !important;
+}
+.mt-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.mt-selector-label {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #555;
+  white-space: nowrap;
+}

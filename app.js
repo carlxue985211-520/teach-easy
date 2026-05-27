@@ -383,6 +383,7 @@ function resetState(tool = currentTool()) {
     betweenEnd: tool.end || 8,
     base: tool.base || 9,
     add: tool.add || 4,
+    makeTenMoved: 0,       // T21/T22 已移到第一行的绿圆数
     swap: false,
     t09Mode: "count",       // T09 三模式：count / split / calc
     t09Verified: false,     // T09 B版：验证前隐藏公式结果
@@ -2020,30 +2021,120 @@ function bindBetween() {
   });
 }
 
-function renderMakeTen() {
+function renderMakeTen(tool) {
   const need = 10 - state.base;
+  const moved = Math.min(state.makeTenMoved, need);
+  const remaining = state.add - moved;
   const rest = state.add - need;
   const result = state.base + state.add;
+  const done = moved === need;
+  const isT22 = tool && tool.id === "T22";
+
+  // 第一行：base 个红圆 + moved 个可移回绿圆 + 空格
+  const row1 = Array.from({ length: 10 }, (_, i) => {
+    if (i < state.base) return `<span class="mt-cell red"></span>`;
+    if (i < state.base + moved) return `<span class="mt-cell green moved" data-mt-move="back" title="点击移回下排"></span>`;
+    return `<span class="mt-cell empty"></span>`;
+  }).join("");
+
+  // 第二行：remaining 个可移绿圆 + 空格
+  const row2 = Array.from({ length: 10 }, (_, i) => {
+    if (i < remaining) return `<span class="mt-cell green" data-mt-move="fwd" title="点击移到上排"></span>`;
+    return `<span class="mt-cell empty"></span>`;
+  }).join("");
+
+  const formulaHtml = done
+    ? `<div class="formula-line mt-formula-done">
+        <span class="formula-box">${state.base}</span><span>+</span><span class="formula-box">${state.add}</span>
+        <span>=</span><span class="formula-box">10</span><span>+</span><span class="formula-box">${rest}</span>
+        <span>=</span><span class="formula-box mt-result-box">${result}</span>
+       </div>
+       <div class="formula-line mt-decomp-line">
+        <span>把</span><span class="formula-box mt-sm-box">${state.add}</span>
+        <span>分成</span><span class="formula-box mt-sm-box">${need}</span>
+        <span>和</span><span class="formula-box mt-sm-box">${rest}</span>
+        <span>，先凑 10</span>
+       </div>`
+    : `<div class="formula-line">
+        <span class="formula-box">${state.base}</span><span>+</span><span class="formula-box">${state.add}</span>
+        <span>=</span><span class="formula-box">?</span>
+       </div>
+       <p class="mt-hint">${moved > 0
+         ? `已移 ${moved} 个，再移 ${need - moved} 个可凑满 10`
+         : "👆 点击下排绿圆，把上排凑满 10"}</p>`;
+
+  // T22 大数选择器
+  const baseSelector = isT22
+    ? `<div class="mt-selector">
+        <span class="mt-selector-label">大数：</span>
+        ${[8, 7, 6].map((b) => `<button class="${state.base === b ? "primary" : ""}" data-mt-base="${b}">${b}</button>`).join("")}
+       </div>` : "";
+
+  // 小数选择器（保证有进位）
+  const minAdd = need + 1;
+  const addBtns = Array.from({ length: 9 - minAdd + 1 }, (_, i) => minAdd + i)
+    .map((a) => `<button class="${state.add === a ? "primary" : ""}" data-mt-add="${a}">${a}</button>`)
+    .join("");
+
   return `
-    <div class="board">
-      <div class="ten-frame">${tenCells(state.base)}</div>
+    <div class="mt-board">
+      <div class="mt-row-wrap">
+        <span class="mt-row-label mt-label-red">${state.base}</span>
+        <div class="mt-row">${row1}</div>
+      </div>
+      <div class="mt-row-wrap">
+        <span class="mt-row-label mt-label-green">${state.add}</span>
+        <div class="mt-row">${row2}</div>
+      </div>
     </div>
-    <div class="formula-line">
-      <span class="formula-box">${state.base}</span><span>+</span><span class="formula-box">${state.add}</span><span>=</span><span class="formula-box">${result}</span>
-    </div>
-    <div class="formula-line">
-      <span>把 ${state.add} 分成</span><span class="formula-box">${need}</span><span>和</span><span class="formula-box">${rest}</span><span>，先凑 10</span>
+    ${formulaHtml}
+    <div class="action-row" style="margin-top:14px;flex-direction:column;align-items:flex-start">
+      ${baseSelector}
+      <div class="mt-selector">
+        <span class="mt-selector-label">小数：</span>
+        ${addBtns}
+      </div>
     </div>
   `;
 }
 
-function bindMakeTen() {
-  document.querySelectorAll("[data-make]").forEach((button) => {
-    button.addEventListener("click", () => {
-      if (button.dataset.make === "add-down") state.add = clamp(state.add - 1, 2, 9);
-      if (button.dataset.make === "add-up") state.add = clamp(state.add + 1, 2, 9);
-      if (state.add < 10 - state.base) state.add = 10 - state.base;
-      setFeedback(`${state.base} 还差 ${10 - state.base} 到 10，所以先从 ${state.add} 里拿出 ${10 - state.base}。`, "good");
+function bindMakeTen(tool) {
+  const need = 10 - state.base;
+
+  document.querySelectorAll("[data-mt-move]").forEach((cell) => {
+    cell.addEventListener("click", () => {
+      if (cell.dataset.mtMove === "fwd" && state.makeTenMoved < need) {
+        state.makeTenMoved++;
+        if (state.makeTenMoved === need) {
+          const rest = state.add - need;
+          setFeedback(`凑成了！${state.base} + ${state.add} = 10 + ${rest} = ${state.base + state.add} 🎉`, "good");
+          launchCelebration();
+        } else {
+          setFeedback(`还差 ${need - state.makeTenMoved} 个绿圆就凑满 10 了！`, "good");
+        }
+      } else if (cell.dataset.mtMove === "back" && state.makeTenMoved > 0) {
+        state.makeTenMoved--;
+        setFeedback(`移回了一个，还差 ${need - state.makeTenMoved} 个。`, "");
+      }
+    });
+  });
+
+  document.querySelectorAll("[data-mt-base]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const newBase = parseInt(btn.dataset.mtBase);
+      state.base = newBase;
+      state.makeTenMoved = 0;
+      const newNeed = 10 - newBase;
+      if (state.add <= newNeed) state.add = newNeed + 1;
+      setFeedback(`换成 ${newBase} 加几，还差 ${newNeed} 到 10，点击绿圆开始凑十。`, "");
+    });
+  });
+
+  document.querySelectorAll("[data-mt-add]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.add = parseInt(btn.dataset.mtAdd);
+      state.makeTenMoved = 0;
+      setFeedback(`换成 ${state.base} + ${state.add}，点击绿圆开始凑十。`, "");
     });
   });
 }

@@ -463,7 +463,7 @@ function render() {
     <article class="tool-card">
       <div class="tool-head">
         <h3>${tool.id}-${version} ${tool.title}</h3>
-        <span class="tool-badge">${version === "A" ? "课件版" : "儿童版"}</span>
+        <span class="tool-badge">${version === "A" ? "课件版" : version === "B" ? "儿童版" : "教参版"}</span>
       </div>
       ${body}
       <div class="feedback ${escapeHtml(state.feedbackType || "")}" id="feedback">${escapeHtml(state.feedback)}</div>
@@ -773,7 +773,7 @@ function escapeHtml(value) {
 }
 
 function objectHtml(count, options = {}) {
-  const shape = options.shape || (version === "A" ? "square" : "");
+  const shape = options.shape || (version !== "B" ? "square" : "");
   const label = options.label || "";
   const empty = options.empty || false;
   let html = "";
@@ -798,7 +798,7 @@ function renderQuantity(tool) {
     .map((num) => `<button data-choice="${num}">${num}</button>`)
     .join("");
   // B版：题干加上物体名称，避免混淆
-  const questionHtml = version !== "A"
+  const questionHtml = version === "B"
     ? `<div class="formula-line"><span>数一数，这里有几个${escapeHtml(iconName)}？</span></div>`
     : `<div class="formula-line"><span>这里有</span><span class="formula-box">?</span><span>个，数一数。</span></div>`;
   return `
@@ -938,7 +938,7 @@ function builderFormula(tool) {
 }
 
 function builderTokenHtml(index, token) {
-  const cls = ["builder-token", version === "A" ? "square" : "", token.crossed ? "crossed" : ""]
+  const cls = ["builder-token", version !== "B" ? "square" : "", token.crossed ? "crossed" : ""]
     .filter(Boolean)
     .join(" ");
   return `<span class="${cls}" data-token="${index}"></span>`;
@@ -991,7 +991,7 @@ function renderBuilder(tool) {
     : "";
 
   // M4：算式例题仅在 A 版显示（B 版去掉与图无关的四个按钮）
-  const examples = cfg.examples && version === "A"
+  const examples = cfg.examples && version !== "B"
     ? `<div class="symbol-row">${cfg.examples.map((expr) => `<button data-bexample="${escapeHtml(expr)}">${escapeHtml(expr.replaceAll("+", " + ").replaceAll("-", " − ").replaceAll("=", " = "))}</button>`).join("")}</div>`
     : "";
 
@@ -1002,8 +1002,8 @@ function renderBuilder(tool) {
     : "把下面的方块拖进左框或右框，算式自动相加。";
 
   // M3：T02 A版加法模式 / T03 B版所有模式 — 拖动后先不显示答案，按钮揭示
-  const revealable = (cfg.revealButton && version === "A" && mode === "add")
-    || (cfg.revealButtonB && version !== "A");
+  const revealable = (cfg.revealButton && version !== "B" && mode === "add")
+    || (cfg.revealButtonB && version === "B");
   const formulaHtml = (revealable && !state.builder.revealed)
     ? `<div class="formula-line" style="opacity:0.35;user-select:none">
          <span>${formula.left}</span><span>=</span><span class="formula-box">?</span>
@@ -1014,7 +1014,7 @@ function renderBuilder(tool) {
        </div>`;
 
   // M-a: T02 B版减法模式 — 在公式上方额外显示"剩下/去掉"直观摘要
-  const bSubSummary = (version !== "A" && mode === "sub") ? (() => {
+  const bSubSummary = (version === "B" && mode === "sub") ? (() => {
     const uncrossed = state.builder.tokens.filter((t) => t.loc === "box0" && !t.crossed).length;
     const crossed = state.builder.tokens.filter((t) => t.loc === "box0" && t.crossed).length;
     return `<div class="b-sub-summary">
@@ -1598,7 +1598,7 @@ function bindBuilderDrag() {
       if (!drag.moved && Math.hypot(dx, dy) > 6) {
         drag.moved = true;
         const ghost = document.createElement("span");
-        ghost.className = "builder-token dragging-ghost" + (version === "A" ? " square" : "");
+        ghost.className = "builder-token dragging-ghost" + (version !== "B" ? " square" : "");
         ghost.style.position = "fixed";
         ghost.style.pointerEvents = "none";
         ghost.style.zIndex = "9999";
@@ -1723,7 +1723,7 @@ function renderT12Table(tool) {
 
 function renderReview(tool) {
   // T12 B版：加法表 / 减法表网格
-  if (tool.id === "T12" && version !== "A") {
+  if (tool.id === "T12" && version === "B") {
     return renderT12Table(tool);
   }
 
@@ -1815,7 +1815,7 @@ function reviewCardTap(r, index) {
 
 function bindReview(tool) {
   // T12 B版：加法表/减法表交互
-  if (tool.id === "T12" && version !== "A") {
+  if (tool.id === "T12" && version === "B") {
     document.querySelectorAll("[data-t12mode]").forEach((btn) => {
       btn.addEventListener("click", () => {
         state.t12TableMode = btn.dataset.t12mode;
@@ -2048,7 +2048,7 @@ function renderTenFrame(tool) {
   }
 
   if (mode === "calc") {
-    const showCalcFormula = version === "A" || state.t09Verified;
+    const showCalcFormula = version !== "B" || state.t09Verified;
     const fv = (v) => showCalcFormula ? v : "?";
     return `
       <div class="board">
@@ -2068,7 +2068,7 @@ function renderTenFrame(tool) {
   }
 
   // count 模式（默认）
-  const showCountFormula = version === "A" || state.t09Verified;
+  const showCountFormula = version !== "B" || state.t09Verified;
   return `
     <div class="board">
       <div class="ten-frame">${tenCells(a)}</div>
@@ -2610,7 +2610,7 @@ function renderBetween() {
     const isLow = num === low, isHigh = num === high;
     const epAttr = isLow ? 'data-drag-ep="start" style="cursor:grab"'
       : isHigh ? 'data-drag-ep="end" style="cursor:grab"' : "";
-    const display = version !== "A"
+    const display = version === "B"
       ? (isLow || isHigh ? "🔴" : "🧒")
       : num;
     return `<span class="person ${isLow || isHigh ? "mark" : ""}" ${epAttr} data-num="${num}">${display}</span>`;
@@ -2794,7 +2794,7 @@ function bindMakeTen(tool) {
 function renderCommutative() {
   const left = state.swap ? state.right : state.left;
   const right = state.swap ? state.left : state.right;
-  const showResult = version !== "A" || state.commRevealed;
+  const showResult = version === "B" || state.commRevealed;
   return `
     <div class="split-board">
       <div class="bin">
@@ -2863,14 +2863,14 @@ function renderProblem(tool) {
   }
 
   // T25 B版：足球 emoji（original 模式 B版）
-  const useFootball = !totalMode && version !== "A";
+  const useFootball = !totalMode && version === "B";
   const objFn = useFootball
     ? (n) => Array.from({ length: n }, (_, i) =>
         `<span class="count-item" style="font-size:28px;animation-delay:${i * 35}ms">⚽</span>`).join("")
     : objectHtml;
 
   // T24 B版：卡通人物两排展示（total 模式 B版）
-  const usePerson = totalMode && version !== "A";
+  const usePerson = totalMode && version === "B";
   const mkPersonRow = (label, n) => {
     const figures = Array.from({ length: n }, (_, i) =>
       `<span class="count-item" style="font-size:26px;animation-delay:${i * 30}ms">🧒</span>`

@@ -255,6 +255,14 @@ body[data-version="b"] .hero-note {
     linear-gradient(180deg, #fff7e4, #edf7ff 60%, #f6fff5);
 }
 
+.tool-stage.version-c {
+  background:
+    linear-gradient(90deg, rgba(42, 122, 59, 0.05) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(42, 122, 59, 0.05) 1px, transparent 1px),
+    #f6fbf6;
+  background-size: 28px 28px;
+}
+
 .tool-card {
   min-height: 590px;
   display: grid;
@@ -367,6 +375,12 @@ body[data-version="b"] .hero-note {
   box-shadow: inset 0 -24px 0 rgba(73, 156, 102, 0.12);
 }
 
+.version-c .board {
+  border: 2px solid #8ec88e;
+  background: #f4fbf4;
+  box-shadow: inset 0 0 0 1px rgba(42, 122, 59, 0.06);
+}
+
 .action-row,
 .number-row,
 .symbol-row {
@@ -409,6 +423,16 @@ body[data-version="b"] .hero-note {
   box-shadow: 0 4px 0 rgba(172, 112, 22, 0.18);
 }
 
+.version-c .action-row button,
+.version-c .number-row button,
+.version-c .symbol-row button,
+.version-c .choice-chip {
+  background: #f4fbf4;
+  border-color: #8ec88e;
+  color: #1a4a20;
+  box-shadow: 0 2px 0 #8ec88e;
+}
+
 .number-row button {
   min-width: 64px;
   font-size: 26px;
@@ -432,6 +456,14 @@ body[data-version="b"] .hero-note {
 .version-b .symbol-row button.active {
   background: #ef7a56;
   border-color: #d65d39;
+  color: #fff;
+}
+
+.version-c .action-row button.primary,
+.version-c .choice-chip.active,
+.version-c .symbol-row button.active {
+  background: #2a7a3b;
+  border-color: #1d5a2b;
   color: #fff;
 }
 

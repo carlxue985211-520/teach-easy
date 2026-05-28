@@ -157,7 +157,7 @@ select {
 }
 
 .version-switch {
-  grid-template-columns: repeat(2, 122px);
+  grid-template-columns: repeat(3, 108px);
 }
 
 .version-switch legend {
@@ -182,6 +182,13 @@ body[data-version="b"] .version.active {
   color: #3c2a05;
   border-color: #c88918;
   box-shadow: inset 0 -3px 0 rgba(120, 78, 8, 0.18);
+}
+
+body[data-version="c"] .version.active {
+  background: #2a7a3b;
+  color: #fff;
+  border-color: #1d5a2b;
+  box-shadow: inset 0 -3px 0 rgba(20, 70, 30, 0.2);
 }
 
 body[data-version="b"] .hero-note {
@@ -1780,3 +1787,371 @@ input[type="range"] {
 .roll-ball     { animation: roll-ball     1.1s ease-in-out; }
 .roll-cylinder { animation: roll-cylinder 1.2s ease-in-out; }
 .roll-tumble   { animation: roll-tumble   1.3s ease-in-out; }
+
+/* ===== C版（教参版）全局背景 ===== */
+body[data-version="c"] {
+  background:
+    radial-gradient(circle at 8% 8%, rgba(168, 220, 168, 0.35), transparent 20%),
+    linear-gradient(180deg, #e4f4e4 0, #f4fbf4 46%, #f8fff6 100%);
+}
+
+/* ===== C版 通用组件 ===== */
+.c-story-box {
+  padding: 12px 16px;
+  background: #fffbe6;
+  border-left: 4px solid #f5c84c;
+  border-radius: 0 8px 8px 0;
+  margin-bottom: 12px;
+}
+.c-story-text {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #5c4000;
+  line-height: 1.5;
+}
+.c-prompt {
+  font-size: 18px;
+  color: #555;
+  margin: 8px 0;
+}
+
+/* ===== T01 C版：散乱摆放（基数）===== */
+.c-scatter-board {
+  position: relative;
+  width: 100%;
+  height: 200px;
+  border: 2px dashed #86c486;
+  border-radius: 12px;
+  background: #f0f9ee;
+  margin: 12px 0;
+  overflow: hidden;
+}
+.c-scatter-item {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  user-select: none;
+  transition: transform 150ms;
+}
+.c-scatter-item:hover { transform: translate(-50%, -50%) scale(1.18); }
+.c-scatter-item.c-counted { opacity: 0.55; }
+.c-scatter-icon { font-size: 40px; display: block; }
+.c-count-badge {
+  position: absolute;
+  top: -6px;
+  right: -10px;
+  font-size: 13px;
+  font-weight: 900;
+  background: #2f8d68;
+  color: #fff;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  line-height: 1;
+}
+.c-result-line {
+  font-size: 24px;
+  font-weight: 900;
+  color: #1a6030;
+  text-align: center;
+  margin: 10px 0;
+}
+.c-big-num {
+  font-size: 48px;
+  color: var(--red);
+}
+
+/* ===== T01 C版：序数模式 ===== */
+.c-ord-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+  padding: 14px 18px;
+  border: 2px dashed #86c486;
+  border-radius: 12px;
+  background: #f0f9ee;
+  justify-content: center;
+  align-items: center;
+}
+.c-ord-item { font-size: 44px; }
+.c-ord-target {
+  outline: 3px solid var(--red);
+  border-radius: 8px;
+  background: rgba(239, 107, 87, 0.12);
+  padding: 3px 5px;
+}
+
+/* ===== T02 C版：三层递进 ===== */
+.c-layers {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.c-layer-btn {
+  padding: 7px 16px;
+  border: 2px solid #8ec88e;
+  border-radius: 20px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 700;
+  color: #2a6030;
+  transition: all 120ms;
+  font-family: inherit;
+}
+.c-layer-btn:hover  { background: #e4f4e4; }
+.c-layer-btn.active { background: #2a7a3b; color: #fff; border-color: #2a7a3b; }
+.c-scene {
+  display: flex;
+  gap: 18px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  padding: 16px;
+  background: #f0f9f0;
+  border-radius: 12px;
+  border: 2px solid #b0d8b0;
+  min-height: 110px;
+  margin: 10px 0;
+}
+.c-scene-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.c-scene-objs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  font-size: 36px;
+  min-height: 44px;
+  align-items: center;
+}
+.c-scene-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: #2a5020;
+  background: #c4ecc4;
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+.c-op-symbol {
+  font-size: 44px;
+  font-weight: 900;
+  color: #2a6030;
+  align-self: center;
+  line-height: 1;
+  padding-bottom: 22px;
+}
+/* Dot frames (点子图) */
+.c-dot-frames {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 16px;
+  background: #f8f8ff;
+  border-radius: 12px;
+  border: 2px solid #c8c8e8;
+  margin: 10px 0;
+}
+.c-dot-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.c-dot-frame {
+  display: grid;
+  grid-template-columns: repeat(5, 18px);
+  gap: 5px;
+  padding: 10px;
+  border: 2px solid #666;
+  border-radius: 8px;
+  background: #fff;
+  min-height: 38px;
+}
+.c-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #333;
+}
+.c-dot.c-dot-cross {
+  background: transparent;
+  border: 2px solid var(--red);
+  position: relative;
+}
+.c-dot.c-dot-cross::before,
+.c-dot.c-dot-cross::after {
+  content: '';
+  position: absolute;
+  width: 120%;
+  height: 2px;
+  background: var(--red);
+  top: 50%;
+  left: -10%;
+  transform-origin: center;
+}
+.c-dot.c-dot-cross::before { transform: translateY(-50%) rotate(45deg); }
+.c-dot.c-dot-cross::after  { transform: translateY(-50%) rotate(-45deg); }
+.c-dot-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: #446;
+  background: #e0e0f8;
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+/* Counting methods (算式+方法) */
+.c-method-box {
+  padding: 10px 14px;
+  border: 2px solid #b0d8b0;
+  border-radius: 8px;
+  background: #f4fbf4;
+  margin: 6px 0;
+}
+.c-method-label {
+  font-size: 14px;
+  font-weight: 900;
+  color: #1a5020;
+  margin-bottom: 4px;
+}
+.c-method-text {
+  font-size: 17px;
+  color: #333;
+  line-height: 1.5;
+}
+
+/* ===== T03 C版 ===== */
+.c-angle-btns {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+.c-angle-btn {
+  padding: 7px 14px;
+  border: 2px solid #a8b8d8;
+  border-radius: 20px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 700;
+  color: #334;
+  transition: all 120ms;
+  font-family: inherit;
+}
+.c-angle-btn:hover  { background: #eef0ff; }
+.c-angle-btn.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+.c-zero-board {
+  min-height: 130px;
+  padding: 18px;
+  border: 2px dashed #a8b8d8;
+  border-radius: 12px;
+  background: #f4f6ff;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  margin: 12px 0;
+}
+.c-zero-item {
+  font-size: 44px;
+  display: inline-block;
+  transition: opacity 300ms, transform 300ms;
+}
+.c-zero-empty {
+  font-size: 20px;
+  color: #99a;
+  font-style: italic;
+  text-align: center;
+}
+.c-big-zero {
+  font-size: 72px;
+  font-weight: 900;
+  color: var(--red);
+  text-align: center;
+  line-height: 1;
+  margin: 8px 0;
+}
+/* Number line C版 */
+.c-numberline-c {
+  display: flex;
+  align-items: flex-start;
+  overflow-x: auto;
+  padding: 10px 0 18px;
+  margin: 10px 0;
+}
+.c-nl-tick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 44px;
+}
+.c-nl-num {
+  font-size: 20px;
+  font-weight: 900;
+  margin-bottom: 4px;
+}
+.c-nl-num.c-zero-star {
+  font-size: 28px;
+  color: var(--red);
+  background: #ffeae8;
+  border-radius: 8px;
+  padding: 2px 8px;
+}
+.c-nl-bar {
+  width: 44px;
+  height: 4px;
+  background: #888;
+  flex-shrink: 0;
+}
+.c-nl-arrow {
+  font-size: 22px;
+  font-weight: 900;
+  color: #888;
+  align-self: flex-end;
+  padding-bottom: 2px;
+}
+/* Operation pattern cards */
+.c-pattern-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 12px 0;
+}
+.c-pattern-card {
+  padding: 14px 10px;
+  border-radius: 10px;
+  background: #f4f6ff;
+  border: 2px solid #c4cef8;
+  text-align: center;
+}
+.c-pattern-title {
+  font-size: 14px;
+  font-weight: 900;
+  color: #334;
+  margin-bottom: 6px;
+}
+.c-pattern-formula {
+  font-size: 26px;
+  font-weight: 900;
+  color: #114;
+}
+.c-pattern-eg {
+  font-size: 14px;
+  color: #668;
+  margin-top: 4px;
+}

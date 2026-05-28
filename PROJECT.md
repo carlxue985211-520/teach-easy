@@ -1,6 +1,6 @@
 # Teach Easy — 项目文档
 
-> 最后更新：2026-05-27（阶段一完成，全部教师评价改进已上线）
+> 最后更新：2026-05-28（阶段二完成；新增 C版教参版 for T01/T02/T03）
 
 ## 项目是什么
 
@@ -37,11 +37,11 @@ Teach Easy 是面向小学一年级数学教师（人教版上册）的网页互
 | Tier 3 复习卡片 | ✅ | T04/12/26 随机抽问/找得数挑战/变色/拖排 |
 | Tier 4 分与合可配置 | ✅ | T06 支持 6-9 任意数、点圆点分组、记录已发现分法 |
 | Tier 5 情境美术 | ✅ | T01 表情物体+草地场景+烟花、T08 加减双算式衔接 |
-| T13–T26 深化 | ⬜ | 尚无教师评价，待收集后制定下一轮改进清单 |
+| 阶段二：T13–T26 评价覆盖与深化 | ✅ | 66 条新评价收集，按难度分级实现 Q/E/F/M/H 全部改进 |
 | GSD 项目管理结构 | ⬜ | `/gsd-ingest-docs` 初始化 `.planning/`，纳入已有文档 |
 | 正式账号系统 | ⬜ | 网站公开后升级为 Supabase Auth |
 
-**下一步**：收集 T13–T26 教师评价；或先初始化 GSD 结构再规划第二轮迭代。
+**下一步**：初始化 GSD 结构，或规划第三轮迭代（分步演示模式、正式账号系统）。
 
 ---
 
@@ -60,7 +60,7 @@ Teach Easy 是面向小学一年级数学教师（人教版上册）的网页互
 | 工具 | 用途 |
 |---|---|
 | `python3 -m http.server 8781 --bind 127.0.0.1` | 本地预览（绑定 localhost 避免局域网暴露）|
-| `node --check app.js` | JS 语法检查（用 `/Users/xuechao/.cache/codex-runtimes/.../node`）|
+| `node --check app.js` | JS 语法检查（用 `/opt/miniconda3/envs/aicoding_2026/bin/node`）|
 | Vercel CI | push → 自动构建部署，无需手动操作 |
 | Supabase SQL Editor | 执行 `supabase-reviews.sql` 初始化评价表（一次性）|
 
@@ -95,13 +95,13 @@ teach-easy/                         # Vercel 部署根目录
 ├── supabase-reviews.sql            # Supabase 评价表初始化（在 SQL Editor 执行一次）
 ├── README.md                       # 简短项目说明
 ├── PROJECT.md                      # 本文档
-├── 改进优先级清单.md                 # 30 条教师评价归类后的 Tier 1-5 清单（未 git 跟踪）
+├── 改进优先级清单.md                 # 66 条教师评价归类后的分级清单（未 git 跟踪）
 ├── REVIEW.md                       # 代码审查报告（未 git 跟踪）
 ├── .gitignore                      # 忽略 .DS_Store / 资料/*.pdf / *.log / .claude/
 ├── .claude/launch.json             # 本地预览服务配置（.gitignored）
 ├── 汇总测试/                        # 早期测试备份（已不作主入口）
 ├── 测试/                            # 最早单节案例 + 教材章节梳理
-└── 资料/                            # 本地教材 PDF 等（.gitignored，不上传）
+└── 资料/                            # 本地教材 PDF + 评价 CSV 等（.gitignored，不上传）
 ```
 
 ### 核心数据流
@@ -121,10 +121,13 @@ render()
   ├─ 更新 header（toolCode, unitName, lessonTitle, teacherTip）
   ├─ renderByType(tool) → 17 种 type 各自的 render 函数：
   │     ├─ builder:    renderBuilder → tokens 方块/叉掉/算式（T02/03/07/10/11）
-  │     ├─ review:     renderReview  → 卡片/抽问/挑战（T04/12/26）
+  │     ├─ review:     renderReview  → 卡片/抽问/挑战（T04/12/26）+ T12 B版加减法表
   │     ├─ split:      renderSplit   → 圆点分组/记录分法（T06）
   │     ├─ quantity:   renderQuantity → emoji 物体/草地场景（T01/T05）
-  │     └─ ...其余 13 种 type（hidePart/tenFrame/placeValue 等）
+  │     ├─ solids:     renderSolids  → SVG 立体图形大图+小图选择器+滚动动画（T13）
+  │     ├─ numberLine: renderNumberLine → 具象方块对比+数轴（T17）
+  │     ├─ makeTen:    renderMakeTen → 两排圆点点击凑十（T21/T22）
+  │     └─ ...其余 10 种 type（hidePart/tenFrame/placeValue 等）
   ├─ els.stage.innerHTML = 全量替换
   └─ renderReviewPanel(tool) → Supabase 评价面板
         │
@@ -161,6 +164,10 @@ bindReviewPanel()  → 绑定评价登录/提交/删除
 | builder 统一组件 | tokens 数组 + mode(add/sub/mix) + Pointer drag | 一套逻辑覆盖 T02/03/07/10/11；不选各自单独实现：五份重复代码，维护成本高 |
 | 复习卡片 | 算式不显示得数，配合挑战/抽问模式 | 隐藏得数更具教学价值（学生口算）；不选显示完整算式：降低练习难度 |
 | emoji 物体 | 20 种轮换图标（水果/动物/车）| 零图片资源，浏览器原生支持；不选 SVG/PNG：需要美术资源和加载 |
+| T13 立体图形视觉 | 内联 SVG 等轴测多边形 | 零图片依赖，可随 CSS 动画配合；不选 CSS 3D transform：六面体布局复杂，调试成本高；不选图片：需美术资源 |
+| 凑十法交互 | 点击移圆（click-to-move）而非拖拽 | 一年级课堂演示精度要求低，点击更稳定；不选拖拽：pointermove 在大屏触摸上易误触 |
+| T12 B版表格 | 网格加/减法表（行×列→格值）| 直观展示数量关系规律，符合"参照其他教材"需求；不选卡片布局：已有 A版卡片，B版差异化价值更高 |
+| T17 具象比较 | 顶部彩色方块两排对齐 + 底部数轴 | 一年级理解一一对应需具象；数轴保留用于观察位置关系；不选纯数轴：评审指出太抽象 |
 
 ---
 
@@ -175,13 +182,13 @@ bindReviewPanel()  → 绑定评价登录/提交/删除
 - **简单账号（1/1, 2/2）可被滥用**：URL 一旦流传，任何人可提交评价。处理方式：保持评审 URL 不公开；网站正式公开前升级为 Supabase Auth。
 - **RLS 删除依赖请求头非强认证**：`x-reviewer-id` 可被伪造，任意客户端可删除他人评价（reviewer_id 仅限 '1'/'2'，攻击面极小）。公开前改为 `auth.uid()` 绑定。
 - **全量 innerHTML 重渲染性能上限**：每次交互重建整个教具 DOM；当前 26 个教具规模可接受；若教具复杂度大幅提升（如 3D 动画、大量 DOM 节点）可能出现卡顿。届时考虑局部更新或引入轻量框架。
-- **T13–T26 无教师评价**：后 13 个教具（立体图形、11-20 认识、进位加法）尚未经过专业教师评审，质量无法评估。需组织评审人覆盖。
 
 🟢 **已知且接受的 tradeoff**
 
 - **anon key 写在 `app.js` 前端**：Supabase anon key 设计上是公开的（类似 Firebase clientConfig），不是安全漏洞；RLS 策略保护数据。不接受将其改为环境变量（会强制引入构建工具）。
 - **无单元测试框架**：使用 `node --check` 语法检查 + 浏览器冒烟测试。当前规模人工验证可覆盖；加测试框架会引入构建复杂度，延后到引入框架后一并处理。
 - **删除旧 addSub/zero/chain 函数**：T02/03/07/10/11 转为 builder 后，旧渲染函数已从代码中删除。如需回滚，需要 git revert。
+- **roll 动画不调用 setFeedback**：T13 滚动动画通过直接操作 DOM 类名 + animationend 清除，避免重渲染中断动画；feedback 文本直接写入 `#feedback` 节点。已知 state.feedback 与 DOM 短暂不同步，下次完整 render 会修正。
 
 ---
 
@@ -196,7 +203,7 @@ python3 -m http.server 8781 --bind 127.0.0.1
 
 **JS 语法检查（必须在提交前执行）：**
 ```bash
-/Users/xuechao/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node --check app.js
+/opt/miniconda3/envs/aicoding_2026/bin/node --check app.js
 ```
 
 **依赖安装规则：** 本项目无 npm 依赖。**不得擅自引入第三方库或 CDN 脚本**；新功能必须用 vanilla JS 实现。若确实需要引入依赖，必须先与项目负责人确认。
@@ -231,19 +238,73 @@ python3 -m http.server 8781 --bind 127.0.0.1
 
 ---
 
-### 阶段二：T13–T26 评价覆盖与深化 ⬜ 未开始
+### 阶段二：T13–T26 评价覆盖与深化 ✅ 已完成（2026-05-28）
 
-**目标**：收集后 13 个教具（立体图形、11-20 认识、进位加法）的教师评价，制定并实现第二轮改进。
+**目标**：收集 T13–T26 教师评价，按难度分级实现全部改进。
 
-**功能列表（待定，依赖评价输入）**：
-- 组织评审人覆盖 T13–T26 [待验证：时间安排]
-- 根据评价制定新的 Tier 清单并实现
+**实际完成内容（66 条评价，分 5 档）：**
 
-**技术难点**：
-- T13 立体图形（solids）可能需要 CSS 3D 透视效果 [待验证：是否需要]
-- T15 捆棒（bundle10）、T16–T20 数位板等可能需要拖放计数棒
+**Q 档 — 质量/正确性修正（Q1–Q8）**
+- Q1 T17 A版验证按钮（不直接显示答案）
+- Q2 T17 范围扩展 0-20
+- Q3 T20 A版 recognize 模式滑块方向修正
+- Q4 T24 B版算式面板修复
+- Q5 T25 算式顺序修正
+- Q6 T26 B版进位加法修正
+- Q7 T19 B版答题验证
+- Q8 各处通用 version-note 删除
 
-**验收标准**：T13–T26 评价覆盖率 100%，改进实现后通过评审人确认。
+**E 档 — 容易快改（E1–E5）**
+- E1 T01 B版答对烟花（launchCelebration 已有，无额外工作）
+- E2 T03 B版固定示例隐藏（M4 已覆盖）
+- E3 T09 B版隐藏公式+验证按钮
+- E4 T14 B版大数字+对号动画
+- E5 T26 A版加法表格式
+
+**F 档 — 快速改进（F1–F3）**
+- F1 T20 滑块方向（Q3 覆盖）
+- F2 凑十法去掉 +1/-1 按钮
+- F3 T07 B版减法摘要（M-a 覆盖）
+
+**M 档 — 中等改进（M1–M13，M-a–M-i）**
+- M1 T03 B版算式揭晓按钮
+- M2 T02 B版减法进度摘要
+- M3 T22 底数选择器
+- M4 T05 B版示例改为题目
+- M5 T08 B版验证模式
+- M6 T09 三模式切换（数数/分成/计算）
+- M7 T13 重构（后被 H1 进一步升级）
+- M8 T17 比较功能增强
+- M9 T20 数位模式切换
+- M10 T23 A版验证隐藏
+- M11 T24/T25 题目序列化
+- M12 T26 加法表 A版
+- M13 捆棒视觉优化（tied sticks CSS）
+- M-a T02 B版减法摘要
+- M-b T07 tip 修正
+- M-c T15/T16 操作数字说明
+- M-d 捆棒外观（tied sticks）
+- M-e T17 比较 tick 样式
+- M-f T20 模式切换
+- M-g T23 A版验证
+- M-h T26 A版表格
+- M-i T17 比较数轴双色
+
+**H 档 — 较难改进（H1–H7）**
+- H1 T13 SVG 立体图形：大图展示+小图选择器+三种滚动动画（ball/cylinder/tumble）
+- H2 T15 三学具切换（小棒/小方块/计数器）
+- H3 T16 三学具切换（小棒/小方块/计数器）
+- H4 T17 具象比较：两排彩色方块一一对应+数轴下移
+- H5 T21 凑十法两排交互（9加几）
+- H6 T22 凑十法两排交互（8/7/6加几）+ 大数选择器
+- H7 T12 B版加/减法表网格
+
+**与计划的偏差**：
+- H1 T13 原计划仅 M 档改进，评审后升级为 H 档全面重构
+- F1/E1/E2 实际已在其他修改中覆盖，无需单独实现
+- 总共 6 次 git 提交，全部通过 `node --check` 语法检查后推送
+
+**验收标准**：✅ 66 条评价全部分类处理、全部较难改进（H1–H7）实现、`www.easyteach.sbs` 已部署最新版本。
 
 ---
 
@@ -253,7 +314,7 @@ python3 -m http.server 8781 --bind 127.0.0.1
 
 **功能列表**：
 - 执行 `/gsd-ingest-docs`，把 `PROJECT.md`、`改进优先级清单.md` 纳入 `.planning/`
-- 初始化 ROADMAP.md，将阶段二及以后的工作映射为 phases
+- 初始化 ROADMAP.md，将阶段四及以后的工作映射为 phases
 
 **技术难点**：较低，主要是文档整理和 GSD 配置。
 
@@ -289,7 +350,7 @@ python3 -m http.server 8781 --bind 127.0.0.1
 - 需要为每个 type 定义「步骤序列」，对当前 render 模型是较大改造（可能需要 `state.step` + 条件渲染）[待验证：改造范围]
 - builder 的 tokens、review 的 cards 等懒初始化状态容易被步骤切换误重置，需 spike 验证状态模型
 
-**建议**：在阶段二结束后专门做一个 spike，先在 T01（最简单的 quantity type）上跑通分步演示完整流程，验证状态模型设计，再推广到其他教具。
+**建议**：在阶段三结束后专门做一个 spike，先在 T01（最简单的 quantity type）上跑通分步演示完整流程，验证状态模型设计，再推广到其他教具。
 
 **验收标准**：至少 10 个核心教具支持分步演示，教师课堂实测反馈通过。
 

@@ -398,6 +398,16 @@ function resetState(tool = currentTool()) {
     solidSelected: 0,       // T13 当前选中的立体图形（0-3）
     t12TableMode: "add",    // T12 B版表格模式：add / sub
     t12ActiveCell: null,    // T12 B版已选格子
+    // C版（教参版）专属状态
+    t01CMode: "cardinal",   // T01 C版模式：cardinal（基数）| ordinal（序数）
+    t01CCounted: 0,         // T01 C版基数模式：已点数个数
+    t01OrdPos: 1,           // T01 C版序数模式：高亮位置（1起）
+    t02CMode: "add",        // T02 C版模式：add | sub
+    t02CLayer: 0,           // T02 C版层次：0情境图 | 1点子图 | 2算式
+    t02CLeft: 3,            // T02 C版第一部分数量
+    t02CRight: 2,           // T02 C版第二部分数量
+    t03CAngle: "nothing",   // T03 C版角度：nothing | origin | operation
+    t03CCount: 5,           // T03 C版"没有"模式剩余数量
     builder: null,
     review: null,
     feedback: "选择一个动作，开始课堂演示。"
@@ -777,6 +787,7 @@ function objectHtml(count, options = {}) {
 }
 
 function renderQuantity(tool) {
+  if (version === "C") return renderQuantityC(tool);
   const target = state.quantityTarget;
   const icon = COUNT_ICONS[state.quantityIcon % COUNT_ICONS.length];
   const iconName = ICON_NAMES[state.quantityIcon % ICON_NAMES.length];
@@ -821,6 +832,7 @@ function launchCelebration() {
 }
 
 function bindQuantity(tool) {
+  if (version === "C") { bindQuantityC(tool); return; }
   document.querySelectorAll("[data-choice]").forEach((button) => {
     button.addEventListener("click", () => {
       const chosen = Number(button.dataset.choice);
@@ -933,6 +945,7 @@ function builderTokenHtml(index, token) {
 }
 
 function renderBuilder(tool) {
+  if (version === "C") return renderBuilderC(tool);
   ensureBuilder(tool);
   const cfg = builderConfig(tool);
   const mode = state.builder.mode;
@@ -1064,6 +1077,7 @@ function applyBuilderExample(tool, expr) {
 }
 
 function bindBuilder(tool) {
+  if (version === "C") { bindBuilderC(tool); return; }
   document.querySelectorAll("[data-bmode]").forEach((button) => {
     button.addEventListener("click", () => {
       state.builder.mode = button.dataset.bmode;
@@ -1090,6 +1104,481 @@ function bindBuilder(tool) {
   });
 
   bindBuilderDrag();
+}
+
+// ===== C版（教参版）渲染与交互 =====
+
+// T01 C版：散乱摆放的固定坐标（百分比），最多支持 9 个物体
+const C_SCATTER_POS = [
+  [14, 12], [60, 9], [82, 22], [32, 42], [70, 46],
+  [10, 62], [86, 58], [46, 74], [26, 82]
+];
+
+function renderQuantityC(tool) {
+  const mode = state.t01CMode;
+  const target = state.quantityTarget;
+  const icon = COUNT_ICONS[state.quantityIcon % COUNT_ICONS.length];
+  const iconName = ICON_NAMES[state.quantityIcon % ICON_NAMES.length];
+
+  const modeToggle = `
+    <div class="action-row" style="margin-top:14px;gap:8px">
+      <button class="${mode === "cardinal" ? "primary" : ""}" data-qt-mode="cardinal">基数（有几个）</button>
+      <button class="${mode === "ordinal" ? "primary" : ""}" data-qt-mode="ordinal">序数（第几个）</button>
+    </div>`;
+
+  if (mode === "cardinal") {
+    const counted = state.t01CCounted;
+    const scatterItems = Array.from({ length: target }, (_, i) => {
+      const [lx, ty] = C_SCATTER_POS[i] || [50, 50];
+      const isCounted = i < counted;
+      return `<span class="c-scatter-item${isCounted ? " c-counted" : ""}"
+        style="left:${lx}%;top:${ty}%"
+        data-scatter="${i}"><span class="c-scatter-icon">${icon}</span>${isCounted ? `<span class="c-count-badge">${i + 1}</span>` : ""}</span>`;
+    }).join("");
+
+    const statusHtml = counted === target
+      ? `<div class="c-result-line">一共 <span class="c-big-num">${target}</span> 个${escapeHtml(iconName)}！</div>`
+      : `<div class="c-prompt">用手指一个一个点过去——已数 <strong>${counted}</strong> 个，还剩 <strong>${target - counted}</strong> 个没数。</div>`;
+
+    return `
+      <div class="c-story-box">
+        <p class="c-story-text">🎒 教室里摆着一些${escapeHtml(iconName)}，散乱地放着，请逐个点击来数一数！</p>
+      </div>
+      <div class="c-scatter-board">${scatterItems}</div>
+      ${statusHtml}
+      <div class="action-row" style="margin-top:12px;gap:8px">
+        <button data-qt-next>换一组</button>
+        <button data-qt-reset-count>重新数</button>
+      </div>
+      ${modeToggle}`;
+  } else {
+    // 序数模式
+    const ordPos = state.t01OrdPos;
+    const ordItems = Array.from({ length: target }, (_, i) => {
+      const isTarget = (i + 1) === ordPos;
+      return `<span class="c-ord-item${isTarget ? " c-ord-target" : ""}">${icon}</span>`;
+    }).join("");
+    const ordChoices = Array.from({ length: target }, (_, i) => i + 1)
+      .map((n) => `<button data-ord-ans="${n}">第${n}个</button>`)
+      .join("");
+
+    return `
+      <div class="c-story-box">
+        <p class="c-story-text">🏫 一排${escapeHtml(iconName)}，从左往右数——红框里那个是第几个？</p>
+      </div>
+      <div class="c-ord-row">${ordItems}</div>
+      <p class="c-prompt">从最左边开始，一个一个数，点击正确答案：</p>
+      <div class="number-row">${ordChoices}</div>
+      <div class="action-row" style="margin-top:12px;gap:8px">
+        <button data-ord-next>换个位置</button>
+        <button data-qt-next>换一组</button>
+      </div>
+      ${modeToggle}`;
+  }
+}
+
+function bindQuantityC(tool) {
+  // 模式切换
+  document.querySelectorAll("[data-qt-mode]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.t01CMode = btn.dataset.qtMode;
+      state.t01CCounted = 0;
+      if (state.t01CMode === "ordinal") {
+        state.t01OrdPos = 1 + Math.floor(Math.random() * state.quantityTarget);
+      }
+      setFeedback(
+        state.t01CMode === "cardinal"
+          ? "基数模式：散乱摆放，让学生逐个点数，建立【有几个】的概念。"
+          : "序数模式：突出某个位置，学生说【第几个】，区分序数与基数。",
+        "good"
+      );
+    });
+  });
+
+  // 逐个点数（基数模式）
+  document.querySelectorAll("[data-scatter]").forEach((el) => {
+    el.addEventListener("click", () => {
+      const idx = parseInt(el.dataset.scatter);
+      if (idx === state.t01CCounted) {
+        state.t01CCounted++;
+        if (state.t01CCounted === state.quantityTarget) {
+          setFeedback(`数完了！一共 ${state.quantityTarget} 个，太棒了！`, "good");
+          launchCelebration();
+        } else {
+          setFeedback(`数了 ${state.t01CCounted} 个，继续数下一个！`, "");
+        }
+        render();
+      } else if (idx < state.t01CCounted) {
+        setFeedback("这个已经数过了，继续数下一个！", "try");
+      } else {
+        setFeedback("要按顺序数哦，从第一个开始，一个接一个！", "try");
+      }
+    });
+  });
+
+  // 重新数
+  document.querySelector("[data-qt-reset-count]")?.addEventListener("click", () => {
+    state.t01CCounted = 0;
+    setFeedback("重新数，从头开始！", "");
+    render();
+  });
+
+  // 换一组
+  document.querySelector("[data-qt-next]")?.addEventListener("click", () => {
+    const max = tool.max;
+    let next;
+    do { next = 1 + Math.floor(Math.random() * max); } while (next === state.quantityTarget && max > 1);
+    state.quantityTarget = next;
+    state.quantityIcon += 1;
+    state.t01CCounted = 0;
+    if (state.t01CMode === "ordinal") {
+      state.t01OrdPos = 1 + Math.floor(Math.random() * next);
+    }
+    setFeedback("换了一组新的，请学生先观察再数。", "good");
+    render();
+  });
+
+  // 序数答题
+  document.querySelectorAll("[data-ord-ans]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const ans = parseInt(btn.dataset.ordAns);
+      if (ans === state.t01OrdPos) {
+        setFeedback(`正确！红框里的是第 ${ans} 个。序数说的是位置，基数说的是数量，要区分清楚！`, "good");
+        launchCelebration();
+      } else {
+        setFeedback("再数一次，从最左边的第1个开始，一个个数到红框。", "try");
+      }
+    });
+  });
+
+  // 换序数位置
+  document.querySelector("[data-ord-next]")?.addEventListener("click", () => {
+    state.t01OrdPos = 1 + Math.floor(Math.random() * state.quantityTarget);
+    setFeedback("换了新位置，再来判断是第几个？", "good");
+    render();
+  });
+}
+
+// T02 C版：加减法三层递进
+function renderBuilderC(tool) {
+  if (tool.id === "T03") return renderBuilderCT03(tool);
+
+  const layer = state.t02CLayer;
+  const mode = state.t02CMode;
+  const left = state.t02CLeft;
+  const right = state.t02CRight;
+  const pool = (tool.builder && tool.builder.pool) || 5;
+  const result = mode === "add" ? left + right : left - right;
+
+  const layerBtns = ["情境图", "点子图", "算式"].map((name, i) =>
+    `<button class="c-layer-btn${layer === i ? " active" : ""}" data-t02layer="${i}">${i + 1}. ${name}</button>`
+  ).join("");
+
+  const modeRow = `
+    <div class="action-row" style="gap:8px;margin-top:10px">
+      <button class="${mode === "add" ? "primary" : ""}" data-t02mode="add">加法</button>
+      <button class="${mode === "sub" ? "primary" : ""}" data-t02mode="sub">减法</button>
+    </div>`;
+
+  // 数量调节按钮
+  const leftBtns = Array.from({ length: pool }, (_, i) => i + 1)
+    .map((n) => `<button class="${left === n ? "primary" : ""}" data-t02left="${n}">${n}</button>`)
+    .join("");
+  const rightMax = mode === "add" ? pool - left : left - 1;
+  const rightBtns = rightMax < 1
+    ? `<span style="color:#888;font-size:14px">（无可用选项）</span>`
+    : Array.from({ length: rightMax }, (_, i) => i + 1)
+        .map((n) => `<button class="${right === n ? "primary" : ""}" data-t02right="${n}">${n}</button>`)
+        .join("");
+
+  const numRows = `
+    <div class="action-row" style="gap:4px;margin-top:8px;flex-wrap:wrap">
+      <span style="font-size:15px;font-weight:700;color:#446;white-space:nowrap">${mode === "add" ? "第一部分：" : "原有："}</span>${leftBtns}
+    </div>
+    <div class="action-row" style="gap:4px;margin-top:4px;flex-wrap:wrap">
+      <span style="font-size:15px;font-weight:700;color:#446;white-space:nowrap">${mode === "add" ? "第二部分：" : "减去："}</span>${rightBtns}
+    </div>`;
+
+  // 情境图图标
+  const icon = mode === "add" ? "🐦" : "🍎";
+  const story = mode === "add"
+    ? `树上有 ${left} 只🐦，又来了 ${right} 只🐦，一共几只？`
+    : `盘子里有 ${left} 个🍎，拿走了 ${right} 个，还剩几个？`;
+
+  let contentHtml = "";
+
+  if (layer === 0) {
+    // 情境图
+    const leftObjs = Array.from({ length: left }, () => icon).join("&nbsp;");
+    const rightObjs = mode === "add"
+      ? Array.from({ length: right }, () => icon).join("&nbsp;")
+      : `<span style="text-decoration:line-through;opacity:0.45">${Array.from({ length: right }, () => icon).join("&nbsp;")}</span>`;
+
+    contentHtml = `
+      <div class="c-story-box">
+        <p class="c-story-text">📖 ${story}</p>
+      </div>
+      <div class="c-scene">
+        <div class="c-scene-group">
+          <div class="c-scene-objs">${leftObjs}</div>
+          <div class="c-scene-label">${mode === "add" ? "原来" : "原有"} ${left} 个</div>
+        </div>
+        <div class="c-op-symbol">${mode === "add" ? "+" : "−"}</div>
+        <div class="c-scene-group">
+          <div class="c-scene-objs">${rightObjs}</div>
+          <div class="c-scene-label">${mode === "add" ? "再来" : "拿走"} ${right} 个</div>
+        </div>
+        <div class="c-op-symbol">=</div>
+        <div class="c-scene-group">
+          <div class="c-scene-objs" style="font-size:40px;font-weight:900;color:#446">？</div>
+          <div class="c-scene-label">共几个</div>
+        </div>
+      </div>
+      <p class="c-prompt">先让学生描述图中发生了什么，再进入"点子图"层。</p>`;
+  } else if (layer === 1) {
+    // 点子图
+    const makeDotFrame = (count, cross = false) => {
+      const dots = Array.from({ length: count }, (_, i) =>
+        `<span class="c-dot${cross ? " c-dot-cross" : ""}"></span>`
+      ).join("");
+      return `<div class="c-dot-frame">${dots}</div>`;
+    };
+
+    contentHtml = `
+      <div class="c-story-box">
+        <p class="c-story-text">🔵 用圆点图表示同样的数量关系：</p>
+      </div>
+      <div class="c-dot-frames">
+        <div class="c-dot-group">
+          ${makeDotFrame(left)}
+          <div class="c-dot-label">${left} 个点</div>
+        </div>
+        <div class="c-op-symbol" style="padding-bottom:28px">${mode === "add" ? "+" : "−"}</div>
+        <div class="c-dot-group">
+          ${makeDotFrame(right, mode === "sub")}
+          <div class="c-dot-label">${mode === "sub" ? "划去 " : ""}${right} 个点</div>
+        </div>
+        <div class="c-op-symbol" style="padding-bottom:28px">=</div>
+        <div class="c-dot-group">
+          <div style="font-size:36px;font-weight:900;color:var(--red);padding:10px">？</div>
+          <div class="c-dot-label">剩几个</div>
+        </div>
+      </div>
+      <p class="c-prompt">图画和圆点都代表同样的数量。让学生数一数，圆点图里剩几个点？</p>`;
+  } else {
+    // 算式 + 三种计算方法
+    const countFromOneDesc = mode === "add"
+      ? `从 1 数到 ${result}，共数了 ${result} 个`
+      : `从 1 数到 ${result}，数了 ${result} 个，就是剩下的`;
+    const countOnNums = mode === "add"
+      ? Array.from({ length: right }, (_, i) => left + i + 1).join("、")
+      : Array.from({ length: right }, (_, i) => left - i - 1).join("、");
+    const countOnDesc = mode === "add"
+      ? `从 ${left} 接着数：${countOnNums}，最后是 ${result}`
+      : `从 ${left} 往回数 ${right} 步：${countOnNums}，到 ${result}`;
+    const decompDesc = mode === "add"
+      ? `${left} 和 ${right} 合成 ${result}`
+      : `${result} 和 ${right} 合成 ${left}，所以 ${left} − ${right} = ${result}`;
+
+    contentHtml = `
+      <div class="formula-line" style="justify-content:center;margin:10px 0">
+        <span class="formula-box">${left}</span>
+        <span>${mode === "add" ? "+" : "−"}</span>
+        <span class="formula-box">${right}</span>
+        <span>=</span>
+        <span class="formula-box" style="color:var(--red)">${result}</span>
+      </div>
+      <p style="font-weight:900;color:#446;margin:12px 0 6px;font-size:17px">教参推荐的三种计算方法：</p>
+      <div class="c-method-box">
+        <div class="c-method-label">① 从1数</div>
+        <div class="c-method-text">${countFromOneDesc}</div>
+      </div>
+      <div class="c-method-box">
+        <div class="c-method-label">② 接着数</div>
+        <div class="c-method-text">${countOnDesc}</div>
+      </div>
+      <div class="c-method-box">
+        <div class="c-method-label">③ 用数的组成</div>
+        <div class="c-method-text">${decompDesc}</div>
+      </div>`;
+  }
+
+  return `
+    <div class="c-layers">${layerBtns}</div>
+    ${contentHtml}
+    ${modeRow}
+    ${numRows}`;
+}
+
+// T03 C版：0的三个角度
+function renderBuilderCT03(tool) {
+  const angle = state.t03CAngle;
+  const count = state.t03CCount;
+
+  const angleBtns = [
+    { key: "nothing", label: "0表示没有" },
+    { key: "origin", label: "0是起点" },
+    { key: "operation", label: "0的运算规律" }
+  ].map(({ key, label }) =>
+    `<button class="c-angle-btn${angle === key ? " active" : ""}" data-t03angle="${key}">${label}</button>`
+  ).join("");
+
+  let contentHtml = "";
+
+  if (angle === "nothing") {
+    const items = count > 0
+      ? Array.from({ length: count }, () => `<span class="c-zero-item">🍎</span>`).join("")
+      : `<span class="c-zero-empty">什么都没有了……</span>`;
+    const zeroLine = count === 0
+      ? `<div class="c-big-zero">0</div>` : "";
+
+    contentHtml = `
+      <div class="c-story-box">
+        <p class="c-story-text">🍽️ 盘子里有 ${count} 个苹果。每次点"拿走一个"，直到盘子空了——那就是 0！</p>
+      </div>
+      <div class="c-zero-board">${items}</div>
+      ${zeroLine}
+      <div class="action-row" style="margin-top:10px;gap:8px">
+        ${count > 0 ? `<button data-t03take class="primary">拿走一个 🍎</button>` : ""}
+        <button data-t03reset>重新放满</button>
+      </div>`;
+  } else if (angle === "origin") {
+    const ticks = Array.from({ length: 11 }, (_, i) => {
+      const isZero = i === 0;
+      return `<div class="c-nl-tick">
+        <span class="c-nl-num${isZero ? " c-zero-star" : ""}">${i}</span>
+        <div class="c-nl-bar"></div>
+      </div>`;
+    }).join("");
+
+    contentHtml = `
+      <div class="c-story-box">
+        <p class="c-story-text">📏 数轴上，0 是所有数字的起点——从 0 开始，每向右一步加 1。</p>
+      </div>
+      <div class="c-numberline-c">${ticks}<span class="c-nl-arrow">→</span></div>
+      <div class="c-method-box">
+        <div class="c-method-label">🔑 关键认识</div>
+        <div class="c-method-text">0 不是"没有数字"，而是一个真实的数，是数轴的出发点。比 0 大的数叫正数，都在 0 的右边。</div>
+      </div>`;
+  } else {
+    // 运算规律
+    const cards = [
+      { title: "加 0 不变", formula: "□ + 0 = □", eg: "如：5 + 0 = 5" },
+      { title: "0 加数不变", formula: "0 + □ = □", eg: "如：0 + 3 = 3" },
+      { title: "减 0 不变", formula: "□ − 0 = □", eg: "如：4 − 0 = 4" },
+      { title: "同数相减为 0", formula: "□ − □ = 0", eg: "如：5 − 5 = 0" }
+    ].map((c) => `<div class="c-pattern-card">
+      <div class="c-pattern-title">${c.title}</div>
+      <div class="c-pattern-formula">${c.formula}</div>
+      <div class="c-pattern-eg">${c.eg}</div>
+    </div>`).join("");
+
+    contentHtml = `
+      <div class="c-story-box">
+        <p class="c-story-text">📐 0 在加减法中有 4 条规律，掌握了就能秒答！</p>
+      </div>
+      <div class="c-pattern-grid">${cards}</div>
+      <p class="c-prompt">请学生用具体算式例子，验证每一条规律是否正确。</p>`;
+  }
+
+  return `<div class="c-angle-btns">${angleBtns}</div>${contentHtml}`;
+}
+
+function bindBuilderC(tool) {
+  if (tool.id === "T03") { bindBuilderCT03(); return; }
+
+  // 层次切换
+  document.querySelectorAll("[data-t02layer]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.t02CLayer = parseInt(btn.dataset.t02layer);
+      const tips = [
+        "情境图——让学生先描述图中的故事，说出谁和谁，发生了什么。",
+        "点子图——用圆点表示同样的数量关系，帮助学生从具象过渡到半抽象。",
+        "算式——展示完整算式，并引导学生说出三种计算方法。"
+      ];
+      setFeedback(tips[state.t02CLayer] || "", "good");
+      render();
+    });
+  });
+
+  // 加减法切换
+  document.querySelectorAll("[data-t02mode]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.t02CMode = btn.dataset.t02mode;
+      state.t02CLayer = 0;
+      const pool = (tool.builder && tool.builder.pool) || 5;
+      if (state.t02CMode === "sub" && state.t02CRight >= state.t02CLeft) {
+        state.t02CRight = Math.max(1, state.t02CLeft - 1);
+      }
+      if (state.t02CMode === "add" && state.t02CLeft + state.t02CRight > pool) {
+        state.t02CRight = pool - state.t02CLeft;
+      }
+      setFeedback(state.t02CMode === "add" ? "加法：两部分合起来。" : "减法：从整体去掉一部分，看剩几个。", "good");
+      render();
+    });
+  });
+
+  // 第一部分数量
+  document.querySelectorAll("[data-t02left]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const pool = (tool.builder && tool.builder.pool) || 5;
+      state.t02CLeft = parseInt(btn.dataset.t02left);
+      state.t02CLayer = 0;
+      if (state.t02CMode === "sub" && state.t02CRight >= state.t02CLeft) {
+        state.t02CRight = Math.max(1, state.t02CLeft - 1);
+      }
+      if (state.t02CMode === "add" && state.t02CLeft + state.t02CRight > pool) {
+        state.t02CRight = Math.max(1, pool - state.t02CLeft);
+      }
+      render();
+    });
+  });
+
+  // 第二部分数量
+  document.querySelectorAll("[data-t02right]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.t02CRight = parseInt(btn.dataset.t02right);
+      state.t02CLayer = 0;
+      render();
+    });
+  });
+}
+
+function bindBuilderCT03() {
+  // 角度切换
+  document.querySelectorAll("[data-t03angle]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.t03CAngle = btn.dataset.t03angle;
+      const tips = {
+        nothing: "0表示没有：反复点【拿走一个】，当盘子空了就是 0，让学生亲眼见证。",
+        origin: "0是起点：数轴上 0 是所有数的出发点，让学生说说从 0 往右数。",
+        operation: "0的运算规律：让学生用具体算式验证每一条规律。"
+      };
+      setFeedback(tips[state.t03CAngle] || "", "good");
+      render();
+    });
+  });
+
+  // 拿走一个
+  document.querySelector("[data-t03take]")?.addEventListener("click", () => {
+    if (state.t03CCount > 0) {
+      state.t03CCount--;
+      if (state.t03CCount === 0) {
+        setFeedback("苹果拿完了！盘子空了——什么都没有了，这就是 0！", "good");
+        launchCelebration();
+      } else {
+        setFeedback(`拿走了一个，还剩 ${state.t03CCount} 个。继续拿，直到拿完！`, "");
+      }
+      render();
+    }
+  });
+
+  // 重新放满
+  document.querySelector("[data-t03reset]")?.addEventListener("click", () => {
+    state.t03CCount = 5;
+    setFeedback("苹果放满了，重新来一次！", "good");
+    render();
+  });
 }
 
 // 指针事件实现拖放：同时支持鼠标和触摸屏（教室一体机）。
